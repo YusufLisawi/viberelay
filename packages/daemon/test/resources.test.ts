@@ -10,7 +10,7 @@ describe('bundled resources', () => {
 
     expect(dirname(bundledBinaryPath)).toBe(expectedResourcesDir)
     expect(dirname(bundledConfigPath)).toBe(expectedResourcesDir)
-    expect(basename(bundledBinaryPath)).toBe('cli-proxy-api-plus')
+    expect(basename(bundledBinaryPath)).toBe(process.platform === 'win32' ? 'cli-proxy-api-plus.exe' : 'cli-proxy-api-plus')
     expect(basename(bundledConfigPath)).toBe('config.yaml')
 
     await expect(access(bundledBinaryPath, fsConstants.F_OK | fsConstants.X_OK)).resolves.toBeUndefined()

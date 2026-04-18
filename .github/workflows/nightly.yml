@@ -18,9 +18,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-13
-            target: bun-darwin-x64
-            archive_ext: tar.gz
+          # macos-13 (darwin-x64) skipped on nightly — free-tier Intel Mac
+          # queue is slow. Still built on stable release.yml tag pushes.
           - runner: macos-14
             target: bun-darwin-arm64
             archive_ext: tar.gz

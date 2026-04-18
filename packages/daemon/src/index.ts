@@ -64,10 +64,20 @@ export interface DaemonController {
 }
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
-const repoRoot = resolve(currentDirectory, '../../..')
+const devRepoRoot = resolve(currentDirectory, '../../..')
+// When running as a Bun --compile binary, import.meta.url lives inside the
+// virtual /$bunfs/ filesystem (read-only). Resources ship next to the
+// executable, so anchor paths on process.execPath instead.
+const isCompiled = import.meta.url.startsWith('file:///$bunfs/') || import.meta.url.includes('/$bunfs/root/')
+const installRoot = isCompiled ? resolve(dirname(process.execPath), '..') : devRepoRoot
+const repoRoot = installRoot
+const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? ''
+const defaultStateDir = isCompiled
+  ? join(homeDir, '.viberelay', 'state')
+  : join(devRepoRoot, '.state')
 export const bundledBinaryPath = resolve(repoRoot, process.platform === 'win32' ? 'resources/cli-proxy-api-plus.exe' : 'resources/cli-proxy-api-plus')
 export const bundledConfigPath = resolve(repoRoot, 'resources/config.yaml')
-const defaultAuthDir = join(process.env.HOME ?? '', '.cli-proxy-api')
+const defaultAuthDir = join(homeDir, '.cli-proxy-api')
 const targetPort = 8328
 
 type RelayChildProcess = ChildProcessByStdio<null, Readable, Readable>
@@ -244,7 +254,7 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
   const host = options.host ?? '127.0.0.1'
   const requestedPort = options.port ?? 0
   const authDir = options.authDir ?? defaultAuthDir
-  const stateDir = options.stateDir ?? join(repoRoot, '.state')
+  const stateDir = options.stateDir ?? defaultStateDir
   let upstreamModels: ModelEntry[] = options.upstreamModels ?? []
   const upstreamFetch = options.upstreamFetch ?? fetch
   let providerUsageByAccount = options.providerUsageByAccount ?? {}

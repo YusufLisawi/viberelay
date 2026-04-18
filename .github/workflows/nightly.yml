@@ -52,11 +52,9 @@ jobs:
       - name: Stamp nightly version
         shell: bash
         run: |
-          SHA=$(git rev-parse --short HEAD)
-          STAMP=$(date -u +%Y%m%d%H%M)
+          export SHA=$(git rev-parse --short HEAD)
+          export STAMP=$(date -u +%Y%m%d%H%M)
           node -e "const fs=require('fs');const p=require('./package.json');p.version=p.version+'-nightly.'+process.env.STAMP+'.'+process.env.SHA;fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
-        env:
-          SHA: ${{ github.sha }}
 
       - name: Typecheck + test
         run: bun run typecheck && bunx vitest run

@@ -54,6 +54,18 @@ async function main(): Promise<void> {
   await mkdir(join(payloadDir, 'bin'), { recursive: true })
   await copyFile(join(binDir, `viberelay${ext}`), join(payloadDir, 'bin', `viberelay${ext}`))
   await copyFile(join(binDir, `viberelay-daemon${ext}`), join(payloadDir, 'bin', `viberelay-daemon${ext}`))
+
+  // macOS arm64/x64: Bun-compiled binaries have an ad-hoc signature that
+  // survives local use but gets invalidated in transit (tar → network →
+  // untar). Re-sign after copying so the user-facing archive launches
+  // without SIGKILL on Gatekeeper-enforced kernels.
+  if (target.startsWith('bun-darwin-') && process.platform === 'darwin') {
+    for (const name of ['viberelay', 'viberelay-daemon']) {
+      const bin = join(payloadDir, 'bin', name)
+      await $`codesign --remove-signature ${bin}`.nothrow()
+      await $`codesign --force --sign - ${bin}`
+    }
+  }
   await copyDir(join(REPO_ROOT, 'resources'), join(payloadDir, 'resources'))
   await copyFile(join(REPO_ROOT, 'packages', 'cli', 'README.md'), join(payloadDir, 'README.md'))
 

@@ -65,6 +65,15 @@ main() {
   chmod +x "$PREFIX/bin/viberelay" "$PREFIX/bin/viberelay-daemon"
   chmod +x "$PREFIX/resources/cli-proxy-api-plus" 2>/dev/null || true
 
+  # macOS: Bun-compiled binaries carry an ad-hoc signature that tar invalidates.
+  # Kernel sends SIGKILL on launch unless we re-sign after extraction.
+  if [ "$os" = "darwin" ] && command -v codesign >/dev/null 2>&1; then
+    for exe in "$PREFIX/bin/viberelay" "$PREFIX/bin/viberelay-daemon"; do
+      codesign --remove-signature "$exe" 2>/dev/null || true
+      codesign --force --sign - "$exe" >/dev/null 2>&1 || info "warning: codesign $exe failed"
+    done
+  fi
+
   mkdir -p "$BIN_DIR"
   ln -sfn "$PREFIX/bin/viberelay" "$BIN_DIR/viberelay"
   ln -sfn "$PREFIX/bin/viberelay-daemon" "$BIN_DIR/viberelay-daemon"

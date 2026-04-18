@@ -23,7 +23,7 @@ describe('lifecycle commands', () => {
     const baseUrl = `http://${started.host}:${started.port}`
 
     const startOutput = await runStartCommand({ baseUrl })
-    const dashboardOutput = await runDashboardCommand({ baseUrl })
+    const dashboardOutput = await runDashboardCommand({ baseUrl, openUrl: async () => undefined })
     const stopOutput = await runStopCommand({ baseUrl })
 
     expect(startOutput).toContain('running')

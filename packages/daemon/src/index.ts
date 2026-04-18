@@ -65,7 +65,7 @@ export interface DaemonController {
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(currentDirectory, '../../..')
-export const bundledBinaryPath = resolve(repoRoot, 'resources/cli-proxy-api-plus')
+export const bundledBinaryPath = resolve(repoRoot, process.platform === 'win32' ? 'resources/cli-proxy-api-plus.exe' : 'resources/cli-proxy-api-plus')
 export const bundledConfigPath = resolve(repoRoot, 'resources/config.yaml')
 const defaultAuthDir = join(process.env.HOME ?? '', '.cli-proxy-api')
 const targetPort = 8328

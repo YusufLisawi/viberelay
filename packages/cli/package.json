@@ -1,0 +1,11 @@
+{
+  "name": "@viberelay/cli",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "viberelay": "./src/bin.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

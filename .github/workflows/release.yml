@@ -1,0 +1,95 @@
+name: viberelay release
+
+on:
+  push:
+    tags: ['viberelay-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. viberelay-v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13
+            target: bun-darwin-x64
+            archive_ext: tar.gz
+          - runner: macos-14
+            target: bun-darwin-arm64
+            archive_ext: tar.gz
+          - runner: ubuntu-latest
+            target: bun-linux-x64
+            archive_ext: tar.gz
+          - runner: ubuntu-24.04-arm
+            target: bun-linux-arm64
+            archive_ext: tar.gz
+          - runner: windows-latest
+            target: bun-windows-x64
+            archive_ext: zip
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        working-directory: viberelay
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install deps
+        run: bun install --frozen-lockfile
+
+      - name: Fetch cli-proxy-api-plus for ${{ matrix.target }}
+        shell: bash
+        env:
+          CLIPROXY_VERSION: ${{ vars.CLIPROXY_VERSION || 'latest' }}
+        run: bun scripts/fetch-cliproxy.ts --target ${{ matrix.target }} --version "$CLIPROXY_VERSION"
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bunx vitest run
+
+      - name: Compile binaries
+        run: bun run scripts/build.ts --target ${{ matrix.target }}
+
+      - name: Package release archive
+        run: bun run scripts/package-release.ts --target ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: viberelay-${{ matrix.target }}
+          path: viberelay/dist/archives/viberelay-${{ matrix.target }}.${{ matrix.archive_ext }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect assets
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} release/ \;
+          cp viberelay/install.sh release/install.sh
+          cp viberelay/install.ps1 release/install.ps1
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: release/*
+          generate_release_notes: true

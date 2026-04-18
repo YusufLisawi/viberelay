@@ -1,0 +1,13 @@
+node_modules
+dist
+.state
+.tmp-cliproxy
+*.log
+.DS_Store
+.*.bun-build
+*.bun-build
+
+# Upstream Go child binary — fetched per platform by scripts/fetch-cliproxy.ts
+resources/cli-proxy-api-plus
+resources/cli-proxy-api-plus.exe
+resources/CLIPROXY_VERSION

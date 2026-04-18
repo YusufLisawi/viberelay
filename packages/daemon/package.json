@@ -1,0 +1,11 @@
+{
+  "name": "@viberelay/daemon",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "viberelay-daemon": "./src/runner.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

@@ -1,0 +1,111 @@
+name: viberelay nightly
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: viberelay-nightly
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13
+            target: bun-darwin-x64
+            archive_ext: tar.gz
+          - runner: macos-14
+            target: bun-darwin-arm64
+            archive_ext: tar.gz
+          - runner: ubuntu-latest
+            target: bun-linux-x64
+            archive_ext: tar.gz
+          - runner: ubuntu-24.04-arm
+            target: bun-linux-arm64
+            archive_ext: tar.gz
+          - runner: windows-latest
+            target: bun-windows-x64
+            archive_ext: zip
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        working-directory: viberelay
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install deps
+        run: bun install --frozen-lockfile
+
+      - name: Fetch cli-proxy-api-plus
+        shell: bash
+        run: bun scripts/fetch-cliproxy.ts --target ${{ matrix.target }}
+
+      - name: Stamp nightly version
+        shell: bash
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          STAMP=$(date -u +%Y%m%d%H%M)
+          node -e "const fs=require('fs');const p=require('./package.json');p.version=p.version+'-nightly.'+process.env.STAMP+'.'+process.env.SHA;fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
+        env:
+          SHA: ${{ github.sha }}
+
+      - name: Typecheck + test
+        run: bun run typecheck && bunx vitest run
+
+      - name: Compile
+        run: bun run scripts/build.ts --target ${{ matrix.target }}
+
+      - name: Package
+        run: bun run scripts/package-release.ts --target ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: viberelay-${{ matrix.target }}
+          path: viberelay/dist/archives/viberelay-${{ matrix.target }}.${{ matrix.archive_ext }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect assets
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} release/ \;
+          cp viberelay/install.sh release/install.sh
+          cp viberelay/install.ps1 release/install.ps1
+
+      - name: Move rolling tag
+        run: |
+          git tag -f viberelay-nightly
+          git push -f origin viberelay-nightly
+
+      - name: Publish nightly release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: viberelay-nightly
+          name: viberelay nightly (main @ ${{ github.sha }})
+          prerelease: true
+          files: release/*
+          body: |
+            Rolling build from `main` at ${{ github.sha }}.
+            Users on the nightly channel will pick this up with:
+            ```
+            viberelay update --channel nightly
+            ```

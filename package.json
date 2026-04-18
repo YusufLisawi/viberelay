@@ -1,0 +1,25 @@
+{
+  "name": "viberelay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.base.json",
+    "lint": "bunx tsc --noEmit -p tsconfig.base.json",
+    "build": "bun scripts/build.ts",
+    "build:all": "bun scripts/build.ts --all",
+    "package": "bun scripts/package-release.ts",
+    "cliproxy:fetch": "bun scripts/fetch-cliproxy.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

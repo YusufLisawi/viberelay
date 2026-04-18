@@ -60,7 +60,11 @@ async function main(): Promise<void> {
   await mkdir(ARCHIVE_DIR, { recursive: true })
   if (isWindows) {
     const archive = join(ARCHIVE_DIR, `${payloadName}.zip`)
-    await $`zip -qr ${archive} ${payloadName}`.cwd(stageDir)
+    if (process.platform === 'win32') {
+      await $`powershell -NoLogo -NoProfile -NonInteractive -Command ${`Compress-Archive -Path ${payloadName} -DestinationPath ${archive} -Force`}`.cwd(stageDir)
+    } else {
+      await $`zip -qr ${archive} ${payloadName}`.cwd(stageDir)
+    }
     console.log(`✓ ${archive}`)
   } else {
     const archive = join(ARCHIVE_DIR, `${payloadName}.tar.gz`)

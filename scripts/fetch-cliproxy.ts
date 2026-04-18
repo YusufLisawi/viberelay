@@ -45,9 +45,10 @@ function valueAfter(args: string[], flag: string): string | undefined {
 
 async function resolveTag(version: string): Promise<string> {
   if (version !== 'latest') return version
-  const response = await fetch(`https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest`, {
-    headers: { accept: 'application/vnd.github+json' }
-  })
+  const headers: Record<string, string> = { accept: 'application/vnd.github+json' }
+  const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN
+  if (token) headers.authorization = `Bearer ${token}`
+  const response = await fetch(`https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest`, { headers })
   if (!response.ok) throw new Error(`failed to resolve latest upstream tag: ${response.status}`)
   const data = await response.json() as { tag_name: string }
   return data.tag_name

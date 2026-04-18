@@ -48,6 +48,7 @@ jobs:
         shell: bash
         env:
           CLIPROXY_VERSION: ${{ vars.CLIPROXY_VERSION || 'latest' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun scripts/fetch-cliproxy.ts --target ${{ matrix.target }} --version "$CLIPROXY_VERSION"
 
       - name: Typecheck

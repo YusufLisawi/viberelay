@@ -46,6 +46,8 @@ jobs:
 
       - name: Fetch cli-proxy-api-plus
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun scripts/fetch-cliproxy.ts --target ${{ matrix.target }}
 
       - name: Stamp nightly version

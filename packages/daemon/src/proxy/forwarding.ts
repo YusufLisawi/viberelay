@@ -8,11 +8,34 @@ export interface UsageStats {
   modelCounts: Record<string, number>
   accountCounts: Record<string, Record<string, number>>
   accountRotationIndex: Record<string, number>
+  statsDay?: string
   lastGroup?: string
   lastModel?: string
   lastProvider?: string
   lastAccount?: string
   lastAt?: string
+}
+
+/** Returns the current local date as YYYY-MM-DD, in the daemon's timezone. */
+export function currentStatsDay(clock: () => Date = () => new Date()): string {
+  // en-CA gives ISO-style YYYY-MM-DD and respects the system locale's date.
+  return clock().toLocaleDateString('en-CA')
+}
+
+/**
+ * Resets per-day counters when the local date changes. Keeps rotation index
+ * and last-hit metadata so the round-robin state survives midnight.
+ */
+export function ensureCurrentDay(stats: UsageStats, clock: () => Date = () => new Date()): boolean {
+  const today = currentStatsDay(clock)
+  if (stats.statsDay === today) return false
+  stats.statsDay = today
+  stats.totalRequests = 0
+  stats.endpointCounts = {}
+  stats.providerCounts = {}
+  stats.modelCounts = {}
+  stats.accountCounts = {}
+  return true
 }
 
 const MAX_ENDPOINT_KEYS = 64
@@ -38,6 +61,7 @@ function incrementBoundedCounter(bucket: Record<string, number>, key: string, ma
 }
 
 export function recordUsage(stats: UsageStats, method: string, path: string, model?: string) {
+  ensureCurrentDay(stats)
   stats.totalRequests += 1
   incrementBoundedCounter(stats.endpointCounts, `${method} ${path}`, MAX_ENDPOINT_KEYS)
   if (model) {
@@ -46,6 +70,7 @@ export function recordUsage(stats: UsageStats, method: string, path: string, mod
 }
 
 export function recordAccountHit(stats: UsageStats, providerType: string, accountFile: string) {
+  ensureCurrentDay(stats)
   incrementBoundedCounter(stats.providerCounts, providerType, MAX_PROVIDER_KEYS)
   const bucket = stats.accountCounts[providerType] ?? (stats.accountCounts[providerType] = {})
   incrementBoundedCounter(bucket, accountFile, MAX_ACCOUNT_KEYS_PER_PROVIDER)
@@ -59,9 +84,11 @@ export function pickNextAccount(stats: UsageStats, providerType: string, activeA
 }
 
 export function buildUsagePayload(stats: UsageStats, iso8601: (date: Date) => string) {
+  ensureCurrentDay(stats)
   return {
     started_at: iso8601(new Date()),
     generated_at: iso8601(new Date()),
+    stats_day: stats.statsDay,
     total_requests: stats.totalRequests,
     endpoint_counts: { ...stats.endpointCounts },
     provider_counts: { ...stats.providerCounts },

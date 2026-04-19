@@ -67,6 +67,7 @@ next_by_provider = data.get("next_account_by_provider", {}) or {}
 last_group = data.get("last_group")
 last_model = data.get("last_model")
 last_at = data.get("last_at")
+stats_day = data.get("stats_day")
 
 # Pool pressure: average used% across every account × both windows.
 used_samples = []
@@ -95,9 +96,10 @@ else:
 print("---")
 line(f"Server: running (port 8327)", color="#9c9")
 if used_samples:
+    since = f" since {stats_day}" if stats_day else ""
     line(
         f"Pool: {int(round(sum(used_samples)/len(used_samples)))}% used "
-        f"across {len(used_samples)} windows · {total} req",
+        f"across {len(used_samples)} windows · {total} req today{since}",
         color="#aaa",
         size=11,
     )
@@ -109,7 +111,8 @@ if used_samples:
             size=11,
         )
 else:
-    line(f"{total} req", color="#aaa", size=11)
+    since = f" since {stats_day}" if stats_day else ""
+    line(f"{total} req today{since}", color="#aaa", size=11)
 
 if last_group or last_model:
     lg = last_group or "—"

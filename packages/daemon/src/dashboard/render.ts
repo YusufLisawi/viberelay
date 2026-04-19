@@ -171,8 +171,9 @@ function renderBody(
         </div>
         <div class="topbar-right">
           <div class="status-badge ${status.proxy.running ? 'running' : 'stopped'}">${status.proxy.running ? 'Running' : 'Stopped'}</div>
-          <button class="btn ghost" data-act="relay-stop" data-action="stop">Stop</button>
-          <button class="btn primary" data-act="relay-start" data-action="start">Start</button>
+          ${status.proxy.running
+            ? '<button class="btn ghost" data-act="relay-stop" data-action="stop">Stop</button>'
+            : '<button class="btn primary" data-act="relay-start" data-action="start">Start</button>'}
         </div>
       </div>
 
@@ -1112,7 +1113,25 @@ const SCRIPT = `
       const current = document.getElementById('app-body');
       if (!fresh || !current) return;
       const scrollY = window.scrollY;
+      const currentLogView = document.getElementById('log-view');
+      const logState = currentLogView
+        ? {
+            html: currentLogView.innerHTML,
+            scrollTop: currentLogView.scrollTop,
+            followChecked: document.getElementById('log-follow')?.checked ?? logsFollow,
+          }
+        : null;
       current.innerHTML = fresh.innerHTML;
+      if (logState) {
+        const nextLogView = document.getElementById('log-view');
+        const nextLogFollow = document.getElementById('log-follow');
+        if (nextLogView) {
+          nextLogView.innerHTML = logState.html;
+          nextLogView.scrollTop = logState.scrollTop;
+        }
+        if (nextLogFollow) nextLogFollow.checked = logState.followChecked;
+        logsFollow = logState.followChecked;
+      }
       wire();
       window.scrollTo(0, scrollY);
     } catch (_) {}

@@ -39,7 +39,8 @@ Proxy:
                      Request counts + 5h/weekly quotas (live refresh in TTY)
   dashboard          Open the web UI
   menubar ...        Install/remove the macOS SwiftBar menu-bar plugin (run \`viberelay menubar help\`)
-  profile ...        Manage local Claude profiles (run \`viberelay profile help\`)
+  profile ... (p)    Manage local Claude profiles (run \`viberelay profile help\`)
+  run [-d] <name>    Shortcut for \`viberelay profile run\` (also: \`r\`, \`exec\`)
 
 Self-maintenance:
   update [--check] [--channel stable|nightly]
@@ -104,8 +105,17 @@ async function main() {
       process.stdout.write(await runMenubarCommand({}) + '\n')
       return
     case 'profile':
+    case 'p':
       process.stdout.write(await runProfileCommand({ baseUrl }) + '\n')
       return
+    case 'run':
+    case 'r':
+    case 'exec': {
+      // Top-level shortcut: `viberelay run [-d] <name>` == `viberelay profile run ...`
+      const argv = ['run', ...process.argv.slice(3)]
+      process.stdout.write(await runProfileCommand({ baseUrl, argv }) + '\n')
+      return
+    }
     case 'update': {
       const args = process.argv.slice(3)
       const check = args.includes('--check')

@@ -75,14 +75,19 @@ export async function runProfileCommand(options: ProfileCommandOptions): Promise
     case 'rm':
       return deleteProfile(profilesDir, requireName(rest[0], 'delete'))
     case 'create':
+    case 'new':
+    case 'c':
       return createProfileCommand(profilesDir, rest, options)
     case 'edit':
+    case 'e':
       return editProfile(profilesDir, requireName(rest[0], 'edit'), options.spawnEditor)
     case 'set':
       return setProfileFields(profilesDir, rest)
     case 'path':
       return profilePath(profilesDir, requireName(rest[0], 'path'))
     case 'run':
+    case 'r':
+    case 'exec':
       return runProfile(profilesDir, rest, options.spawnClaude)
     case 'help':
     case '--help':
@@ -95,17 +100,19 @@ export async function runProfileCommand(options: ProfileCommandOptions): Promise
 
 function profileUsage(): string {
   return [
-    'Usage: viberelay profile <subcommand>',
+    'Usage: viberelay profile <subcommand>    (alias: viberelay p)',
     '',
-    'Subcommands:',
-    '  list                      List profiles',
-    '  show <name>               Print profile JSON',
-    '  path <name>               Print profile file path',
-    '  create [name] [flags]     Create a viberelay-linked profile (interactive by default)',
-    '  edit <name>               Open profile in $EDITOR (validates JSON on save)',
-    '  set <name> [flags]        Patch fields in an existing profile',
-    '  delete <name>             Remove a profile',
-    '  run [--dangerous] <name> [claude args...]  Launch claude with profile env',
+    'Subcommands:                       (aliases in parens)',
+    '  list                (ls)         List profiles',
+    '  show <name>         (cat)        Print profile JSON',
+    '  path <name>                      Print profile file path',
+    '  create [name] [flags] (c, new)   Create a viberelay-linked profile (interactive)',
+    '  edit <name>         (e)          Open profile in $EDITOR',
+    '  set <name> [flags]               Patch fields in an existing profile',
+    '  delete <name>       (rm)         Remove a profile',
+    '  run [-d] <name>     (r, exec)    Launch claude with profile env (-d = --dangerous)',
+    '',
+    'Top-level shortcut:  viberelay run -d <name>   (== viberelay p r -d <name>)',
     '',
     'create flags (skip any prompt by passing the value):',
     '  --opus <group>            Model group alias for opus',

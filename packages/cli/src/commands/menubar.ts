@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { access, mkdir, readlink, rm, symlink } from 'node:fs/promises'
 import { homedir, platform } from 'node:os'
 import { dirname, resolve } from 'node:path'
@@ -39,6 +39,35 @@ async function detectHostDir(override?: string): Promise<{ dir: string, host: 's
   const xbar = resolve(home, XBAR_DIR)
   if (await exists(xbar)) return { dir: xbar, host: 'xbar' }
   return null
+}
+
+function swiftbarAppInstalled(): boolean {
+  return (
+    spawnSync('test', ['-d', '/Applications/SwiftBar.app']).status === 0 ||
+    spawnSync('test', ['-d', `${homedir()}/Applications/SwiftBar.app`]).status === 0
+  )
+}
+
+function brewAvailable(): boolean {
+  return spawnSync('command', ['-v', 'brew'], { shell: '/bin/bash' }).status === 0
+}
+
+function installSwiftBarViaBrew(logs: string[]): boolean {
+  logs.push('installing SwiftBar via brew (this takes ~20s)…')
+  const result = spawnSync('brew', ['install', '--cask', 'swiftbar'], { stdio: 'pipe', encoding: 'utf8' })
+  if (result.status === 0) {
+    logs.push('✓ SwiftBar installed')
+    return true
+  }
+  logs.push(`brew install failed (exit ${result.status}): ${result.stderr?.trim() ?? ''}`)
+  return false
+}
+
+async function ensureSwiftBarPluginDir(): Promise<string> {
+  const home = homedir()
+  const dir = resolve(home, SWIFTBAR_DIR)
+  await mkdir(dir, { recursive: true })
+  return dir
 }
 
 function parseTarget(argv: string[]): string | undefined {
@@ -85,29 +114,61 @@ async function installPlugin(override?: string): Promise<string> {
   if (!(await exists(src))) {
     throw new Error(`plugin source missing at ${src}`)
   }
-  const host = await detectHostDir(override)
-  if (!host) {
-    return [
-      'No SwiftBar or xbar plugin directory found.',
-      '',
-      'Install SwiftBar (recommended):',
-      '  brew install --cask swiftbar',
-      '',
-      'Then re-run:  viberelay menubar install',
-      '',
-      'Or specify a custom directory:  viberelay menubar install --dir <path>'
-    ].join('\n')
+  const logs: string[] = []
+  let host = await detectHostDir(override)
+
+  if (!host && !override) {
+    if (!swiftbarAppInstalled()) {
+      if (brewAvailable()) {
+        if (!installSwiftBarViaBrew(logs)) {
+          return [
+            ...logs,
+            '',
+            'Could not install SwiftBar automatically. Install it manually:',
+            '  brew install --cask swiftbar',
+            'Then re-run:  viberelay menubar install'
+          ].join('\n')
+        }
+      } else {
+        return [
+          'SwiftBar is not installed and Homebrew is unavailable.',
+          '',
+          'Install one of the following, then re-run `viberelay menubar install`:',
+          '  • SwiftBar — https://github.com/swiftbar/SwiftBar/releases',
+          '  • Homebrew — https://brew.sh  (then `brew install --cask swiftbar`)'
+        ].join('\n')
+      }
+    }
+    const dir = await ensureSwiftBarPluginDir()
+    host = { dir, host: 'swiftbar' }
   }
+
+  if (!host) {
+    throw new Error('could not resolve plugin host directory')
+  }
+
   await mkdir(host.dir, { recursive: true })
   const dest = resolve(host.dir, PLUGIN_FILE)
   if (await exists(dest)) {
     await rm(dest)
   }
   await symlink(src, dest)
+
   if (host.host === 'swiftbar') {
-    spawn('open', ['-gja', 'SwiftBar'], { stdio: 'ignore', detached: true }).unref()
+    // Pre-set PluginDirectory so SwiftBar skips the first-run folder picker.
+    spawnSync('defaults', ['write', 'com.ameba.SwiftBar', 'PluginDirectory', '-string', host.dir])
+    // If SwiftBar is running with a different folder, restart so it re-reads prefs.
+    if (spawnSync('pgrep', ['-x', 'SwiftBar']).status === 0) {
+      spawnSync('osascript', ['-e', 'tell application "SwiftBar" to quit'])
+    }
+    spawn('open', ['-a', 'SwiftBar'], { stdio: 'ignore', detached: true }).unref()
   }
-  return `installed ${PLUGIN_FILE} → ${dest} (${host.host})`
+
+  return [
+    ...logs,
+    `installed ${PLUGIN_FILE} → ${dest} (${host.host})`,
+    host.host === 'swiftbar' ? 'launching SwiftBar; icon should appear in the menu bar momentarily.' : ''
+  ].filter(Boolean).join('\n')
 }
 
 async function uninstallPlugin(override?: string): Promise<string> {

@@ -104,7 +104,16 @@ main() {
     *) printf '\n\033[1;33m!\033[0m Add this to your shell rc:\n    export PATH="%s:$PATH"\n' "$BIN_DIR" ;;
   esac
 
-  info "run: viberelay status"
+  # Auto-register the OS service so the daemon comes up on every login.
+  if [ "${VIBERELAY_NO_SERVICE:-0}" != "1" ]; then
+    if "$PREFIX/bin/viberelay" service install >/dev/null 2>&1; then
+      info "registered viberelay-daemon with the OS service manager"
+    else
+      info "warning: service registration failed; start manually with: viberelay start"
+    fi
+  fi
+
+  info "done — try: viberelay status"
 }
 
 main "$@"

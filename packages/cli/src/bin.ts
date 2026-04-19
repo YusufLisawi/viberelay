@@ -2,7 +2,9 @@
 import process from 'node:process'
 import { runAccountsCommand } from './commands/accounts.js'
 import { runDashboardCommand } from './commands/dashboard.js'
+import { runLogsCommand } from './commands/logs.js'
 import { runProfileCommand } from './commands/profile.js'
+import { runServiceCommand } from './commands/service.js'
 import { runStartCommand } from './commands/start.js'
 import { runStatusCommand } from './commands/status.js'
 import { runStopCommand } from './commands/stop.js'
@@ -13,8 +15,41 @@ import { VERSION } from './version.js'
 const baseUrl = process.env.VIBERELAY_BASE_URL ?? 'http://127.0.0.1:8327'
 const command = process.argv[2] ?? 'status'
 
+function helpText(): string {
+  return `viberelay ${VERSION}
+
+Usage: viberelay <command>
+
+Daemon lifecycle:
+  start              Launch viberelay-daemon in the background (idempotent)
+  stop               Stop the running daemon
+  restart            Stop then start
+  status             Daemon + accounts summary (safe when daemon is down)
+  logs [N]           Tail last N lines of the daemon log (default 50)
+
+Service registration (auto-start on login):
+  service install    Register launchd (macOS) or systemd --user (Linux)
+  service uninstall  Remove the service
+  service status     Query the service manager
+
+Proxy:
+  accounts           Account summary per provider
+  usage              Request counts + 5h/weekly quota windows
+  dashboard          Open the web UI
+  profile ...        Manage local Claude profiles (run \`viberelay profile help\`)
+
+Self-maintenance:
+  update [--check] [--channel stable|nightly]
+  --version`
+}
+
 async function main() {
   switch (command) {
+    case 'help':
+    case '--help':
+    case '-h':
+      process.stdout.write(helpText() + '\n')
+      return
     case '--version':
     case '-v':
     case 'version':
@@ -24,10 +59,22 @@ async function main() {
       process.stdout.write(await runStartCommand({ baseUrl }) + '\n')
       return
     case 'stop':
-      process.stdout.write(await runStopCommand({ baseUrl }) + '\n')
+      process.stdout.write(await runStopCommand() + '\n')
+      return
+    case 'restart':
+      process.stdout.write(await runStopCommand() + '\n')
+      process.stdout.write(await runStartCommand({ baseUrl }) + '\n')
       return
     case 'status':
       process.stdout.write(await runStatusCommand({ baseUrl }) + '\n')
+      return
+    case 'logs': {
+      const tail = Number.parseInt(process.argv[3] ?? '50', 10)
+      process.stdout.write(await runLogsCommand({ tail }) + '\n')
+      return
+    }
+    case 'service':
+      process.stdout.write(await runServiceCommand({}) + '\n')
       return
     case 'accounts':
       process.stdout.write(await runAccountsCommand({ baseUrl }) + '\n')
@@ -51,9 +98,12 @@ async function main() {
       return
     }
     default:
-      process.stderr.write(`Unknown command: ${command}\n`)
+      process.stderr.write(`Unknown command: ${command}\n\n${helpText()}\n`)
       process.exit(1)
   }
 }
 
-void main()
+void main().catch((error: Error) => {
+  process.stderr.write(`${error.message}\n`)
+  process.exit(1)
+})

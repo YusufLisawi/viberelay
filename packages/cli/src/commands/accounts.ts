@@ -9,12 +9,19 @@ interface AccountsPayload {
   providers: Record<string, { active: number, total: number }>
 }
 
-export async function runAccountsCommand(options: AccountsCommandOptions) {
-  const response = await fetch(`${options.baseUrl}/accounts`)
-  const accounts = (await response.json()) as AccountsPayload
-  const providers = Object.entries(accounts.providers)
-    .map(([provider, summary]) => `${provider} ${summary.active}/${summary.total} active`)
-    .join(', ')
+import { isConnectionRefused } from '../lib/daemon-control.js'
 
-  return providers.length > 0 ? providers : `${accounts.active}/${accounts.total} active`
+export async function runAccountsCommand(options: AccountsCommandOptions) {
+  try {
+    const response = await fetch(`${options.baseUrl}/accounts`)
+    const accounts = (await response.json()) as AccountsPayload
+    const providers = Object.entries(accounts.providers)
+      .map(([provider, summary]) => `${provider} ${summary.active}/${summary.total} active`)
+      .join(', ')
+
+    return providers.length > 0 ? providers : `${accounts.active}/${accounts.total} active`
+  } catch (error) {
+    if (isConnectionRefused(error)) return 'viberelay-daemon not running — start it with: viberelay start'
+    throw error
+  }
 }

@@ -34,9 +34,17 @@ function accountLabel(file: string, provider: string, labels?: Record<string, Re
   return file.replace(/\.json$/, '')
 }
 
+import { isConnectionRefused } from '../lib/daemon-control.js'
+
 export async function runUsageCommand(options: UsageCommandOptions) {
-  const response = await fetch(`${options.baseUrl}/usage`)
-  const usage = (await response.json()) as UsagePayload
+  let usage: UsagePayload
+  try {
+    const response = await fetch(`${options.baseUrl}/usage`)
+    usage = (await response.json()) as UsagePayload
+  } catch (error) {
+    if (isConnectionRefused(error)) return 'viberelay-daemon not running — start it with: viberelay start'
+    throw error
+  }
   const lines: string[] = []
   lines.push(`requests ${usage.total_requests}`)
 

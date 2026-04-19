@@ -355,7 +355,7 @@ function renderBody(
               ${providerCountEntries.length === 0 ? '<p class="empty">No usage yet.</p>' : `<div class="list">${providerCountEntries.map(([name, count]) => {
                 const maxCount = Math.max(...providerCountEntries.map((e) => e[1]))
                 const pct = maxCount > 0 ? (count / maxCount) * 100 : 0
-                return `<div class="bar-row"><div class="bar-label"><span>${providerIcon(name)} ${escape(name)}</span><span class="bar-value">${count}</span></div><div class="bar"><div class="bar-fill ok" style="width:${pct}%"></div></div></div>`
+                return `<div class="bar-row"><div class="bar-label"><span class="with-icon">${providerIcon(name)}<span>${escape(name)}</span></span><span class="bar-value">${count}</span></div><div class="bar"><div class="bar-fill ok" style="width:${pct}%"></div></div></div>`
               }).join('')}</div>`}
             </div>
           </div>
@@ -679,7 +679,8 @@ input[type=text]:focus, input[type=number]:focus { outline: none; border-color: 
 .provider-title { display: flex; align-items: center; gap: 8px; }
 .provider-title strong { font-size: 12px; text-transform: capitalize; }
 .provider-meta { display: flex; gap: 4px; }
-.provider-icon { width: 16px; height: 16px; border-radius: 4px; object-fit: cover; background: var(--panel-2); }
+.provider-icon { width: 16px; height: 16px; border-radius: 4px; object-fit: cover; background: var(--panel-2); vertical-align: middle; }
+.with-icon { display: inline-flex; align-items: center; gap: 6px; }
 .provider-icon-fallback { display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--accent); border: 1px solid var(--border); }
 
 .accounts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }

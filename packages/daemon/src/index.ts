@@ -624,9 +624,11 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
             return
           }
           const activeByType = await activeAccountsByType(authDir, settingsStore?.state)
+          recordUsage(usageStats, 'POST', url.pathname)
           const forwarded = await normalizeAndForward({
             onResolved: (realModel) => {
               try {
+                usageStats.modelCounts[realModel] = (usageStats.modelCounts[realModel] ?? 0) + 1
                 const provider = extractProvider(realModel)
                 const accountType = mapProviderToAccountType(provider, realModel)
                 if (!accountType) return

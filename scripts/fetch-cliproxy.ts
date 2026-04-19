@@ -12,7 +12,8 @@
  * Source: https://github.com/router-for-me/CLIProxyAPIPlus/releases
  */
 
-import { mkdir, rm, writeFile, rename, chmod } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { mkdir, readFile, rm, writeFile, rename, chmod } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { $ } from 'bun'
 
@@ -59,6 +60,53 @@ function assetName(tag: string, map: typeof TARGET_MAP[string]): string {
   return `CLIProxyAPIPlus_${bare}_${map.goos}_${map.goarch}.${map.ext}`
 }
 
+/**
+ * Attempt to fetch and verify a SHA-256 checksum for the downloaded archive.
+ *
+ * Looks for either a `<asset>.sha256` sibling or a `checksums.txt` file in
+ * the same release. Returns the verified hex digest, or null if no checksum
+ * asset is available (caller should warn).
+ */
+async function verifyUpstreamChecksum(
+  tag: string,
+  asset: string,
+  localArchive: string,
+  headers: Record<string, string>
+): Promise<string | null> {
+  // Try the simple sibling first: <asset>.sha256
+  const sha256Url = `https://github.com/${UPSTREAM_REPO}/releases/download/${tag}/${asset}.sha256`
+  const sha256Res = await fetch(sha256Url, { headers })
+  if (sha256Res.ok) {
+    const raw = await sha256Res.text()
+    const expected = raw.trim().split(/\s+/)[0]?.toLowerCase()
+    if (!expected) throw new Error(`sha256 file for ${asset} is empty or malformed`)
+    const actual = createHash('sha256').update(await readFile(localArchive)).digest('hex')
+    if (actual !== expected) {
+      throw new Error(`checksum mismatch for ${asset}: expected ${expected}, got ${actual}`)
+    }
+    return actual
+  }
+
+  // Fallback: checksums.txt (common Go release convention)
+  const checksumsUrl = `https://github.com/${UPSTREAM_REPO}/releases/download/${tag}/checksums.txt`
+  const checksumsRes = await fetch(checksumsUrl, { headers })
+  if (checksumsRes.ok) {
+    const lines = (await checksumsRes.text()).split('\n')
+    const line = lines.find((l) => l.includes(asset))
+    if (line) {
+      const expected = line.trim().split(/\s+/)[0]?.toLowerCase()
+      if (!expected) throw new Error(`checksums.txt entry for ${asset} is malformed`)
+      const actual = createHash('sha256').update(await readFile(localArchive)).digest('hex')
+      if (actual !== expected) {
+        throw new Error(`checksum mismatch for ${asset}: expected ${expected}, got ${actual}`)
+      }
+      return actual
+    }
+  }
+
+  return null
+}
+
 async function main(): Promise<void> {
   const { target, version } = parseArgs(process.argv)
   const map = TARGET_MAP[target]!
@@ -66,15 +114,30 @@ async function main(): Promise<void> {
   const asset = assetName(tag, map)
   const url = `https://github.com/${UPSTREAM_REPO}/releases/download/${tag}/${asset}`
 
+  const headers: Record<string, string> = { accept: 'application/vnd.github+json' }
+  const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN
+  if (token) headers.authorization = `Bearer ${token}`
+
   const tmp = join(REPO_ROOT, '.tmp-cliproxy')
   await rm(tmp, { recursive: true, force: true })
   await mkdir(tmp, { recursive: true })
 
   console.log(`→ fetching ${url}`)
   const localArchive = join(tmp, asset)
-  const response = await fetch(url)
+  const response = await fetch(url, { headers })
   if (!response.ok) throw new Error(`download failed: ${response.status} ${response.statusText}`)
   await writeFile(localArchive, Buffer.from(await response.arrayBuffer()))
+
+  // Verify integrity before extraction.
+  const verified = await verifyUpstreamChecksum(tag, asset, localArchive, headers)
+  let checksumNote: string
+  if (verified) {
+    console.log(`→ checksum verified: ${verified}`)
+    checksumNote = verified
+  } else {
+    console.warn(`⚠ no checksum found for ${asset}; skipping verification`)
+    checksumNote = 'unverified'
+  }
 
   console.log('→ extracting')
   if (map.ext === 'tar.gz') {
@@ -90,7 +153,9 @@ async function main(): Promise<void> {
   if (!target.includes('windows')) {
     await chmod(destination, 0o755)
   }
-  await writeFile(join(RESOURCES, 'CLIPROXY_VERSION'), `${tag}\n`)
+
+  // Write version file with tag and checksum status for auditability.
+  await writeFile(join(RESOURCES, 'CLIPROXY_VERSION'), `${tag}\n${checksumNote}\n`)
   await rm(tmp, { recursive: true, force: true })
 
   console.log(`✓ ${map.binaryName} (${tag}) → ${destination}`)

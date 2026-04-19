@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import path, { dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { createInterface, type Interface } from 'node:readline'
 
@@ -165,9 +165,29 @@ export async function readProfile(profilesDir: string, name: string): Promise<Pr
   return JSON.parse(raw) as ProfileFile
 }
 
+function assertSafeProfileName(name: string): void {
+  if (!name || name.trim() === '') {
+    throw new Error('profile: name cannot be empty')
+  }
+  if (name.includes('/') || name.includes('\\') || name.includes('\0')) {
+    throw new Error(`profile: invalid name (path separators not allowed): ${name}`)
+  }
+  const segments = name.split(/[/\\]/)
+  if (segments.some((segment) => segment === '..' || segment === '.')) {
+    throw new Error(`profile: invalid name (traversal not allowed): ${name}`)
+  }
+}
+
 function profilePath(profilesDir: string, name: string): string {
+  assertSafeProfileName(name)
   const filename = name.endsWith('.json') ? name : `${name}.json`
-  return join(profilesDir, filename)
+  const computed = join(profilesDir, filename)
+  const resolvedBase = resolve(profilesDir)
+  const resolvedFile = resolve(computed)
+  if (resolvedFile !== resolvedBase && !resolvedFile.startsWith(resolvedBase + path.sep)) {
+    throw new Error(`profile: resolved path escapes profiles directory: ${name}`)
+  }
+  return computed
 }
 
 async function createProfileCommand(

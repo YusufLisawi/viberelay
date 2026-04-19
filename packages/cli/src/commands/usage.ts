@@ -136,9 +136,18 @@ function renderUsage(usage: UsagePayload, opts: { color: boolean; timestamp?: bo
   return out.join('\n')
 }
 
-async function fetchUsage(baseUrl: string): Promise<UsagePayload> {
-  const response = await fetch(`${baseUrl}/usage`)
-  return (await response.json()) as UsagePayload
+async function fetchUsage(baseUrl: string, signal?: AbortSignal): Promise<UsagePayload> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 5000)
+  const onParentAbort = () => controller.abort()
+  signal?.addEventListener('abort', onParentAbort, { once: true })
+  try {
+    const response = await fetch(`${baseUrl}/usage`, { signal: controller.signal })
+    return (await response.json()) as UsagePayload
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', onParentAbort)
+  }
 }
 
 export async function runUsageCommand(options: UsageCommandOptions) {
@@ -166,36 +175,66 @@ export async function runUsageWatch(options: UsageWatchOptions): Promise<void> {
   const hideCursor = () => write('\x1b[?25l')
   const showCursor = () => write('\x1b[?25h')
 
+  const internalAbort = new AbortController()
+  const parentSignal = options.signal
+  const onParentAbort = () => internalAbort.abort()
+  parentSignal?.addEventListener('abort', onParentAbort, { once: true })
+
+  let cleaned = false
   const cleanup = () => {
+    if (cleaned) return
+    cleaned = true
+    internalAbort.abort()
+    parentSignal?.removeEventListener('abort', onParentAbort)
     showCursor()
+    process.off('SIGINT', onSignal)
+    process.off('SIGTERM', onSignal)
+    process.off('exit', cleanup)
   }
-  process.on('SIGINT', () => {
+  const onSignal = () => {
     cleanup()
     process.exit(0)
+  }
+  process.once('SIGINT', onSignal)
+  process.once('SIGTERM', onSignal)
+  process.once('exit', () => {
+    if (!cleaned) {
+      write('\x1b[?25h')
+    }
   })
-  process.on('SIGTERM', () => {
-    cleanup()
-    process.exit(0)
+
+  const sleep = (ms: number) => new Promise<void>((resolve) => {
+    const id = setTimeout(() => {
+      internalAbort.signal.removeEventListener('abort', wake)
+      resolve()
+    }, ms)
+    const wake = () => {
+      clearTimeout(id)
+      resolve()
+    }
+    internalAbort.signal.addEventListener('abort', wake, { once: true })
   })
 
   hideCursor()
   try {
-    while (!options.signal?.aborted) {
+    while (!internalAbort.signal.aborted) {
       let body: string
       try {
-        const usage = await fetchUsage(options.baseUrl)
+        const usage = await fetchUsage(options.baseUrl, internalAbort.signal)
         body = renderUsage(usage, { color, timestamp: true })
       } catch (error) {
+        if ((error as { name?: string }).name === 'AbortError') break
         if (isConnectionRefused(error)) {
           body = 'viberelay-daemon not running — start it with: viberelay start'
         } else {
           body = `error: ${(error as Error).message}`
         }
       }
+      if (internalAbort.signal.aborted) break
       clear()
       write(body)
       write(`\n\n\x1b[2m(refreshing every ${Math.round(interval / 1000)}s · Ctrl-C to exit)\x1b[0m\n`)
-      await new Promise((resolve) => setTimeout(resolve, interval))
+      await sleep(interval)
     }
   } finally {
     cleanup()

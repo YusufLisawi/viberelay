@@ -47,7 +47,11 @@ resolve_url() {
 }
 
 tmp=""
-cleanup() { [ -n "$tmp" ] && rm -rf "$tmp"; }
+cleanup() {
+  if [ -n "$tmp" ] && [[ "$tmp" =~ ^(/tmp/|/var/folders/|$TMPDIR) ]] || [[ "$tmp" == */tmp.* ]]; then
+    rm -r "$tmp" || true
+  fi
+}
 trap cleanup EXIT
 
 main() {

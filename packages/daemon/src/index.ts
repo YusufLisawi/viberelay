@@ -13,6 +13,7 @@ import { injectGroupModels, shouldInterceptModelsRequest, type ModelEntry } from
 import { ModelGroupRouter, type ModelGroup } from './proxy/model-group-router.js'
 import {
   buildUsagePayload,
+  isRequestBodyTooLargeError,
   normalizeAndForward,
   normalizeRequestBody,
   readRequestBody,
@@ -181,9 +182,31 @@ function parseBoolean(value: string | null | undefined) {
   return value === 'true' || value === 'on' || value === '1'
 }
 
+function isFresh(timestamp: number, ttlMs: number) {
+  return timestamp > 0 && Date.now() - timestamp < ttlMs
+}
+
 function parseFormBody(body: string) {
   const params = new URLSearchParams(body)
   return Object.fromEntries(params.entries())
+}
+
+function isSafeOrigin(request: import('node:http').IncomingMessage, expectedHost: string, expectedPort: number): boolean {
+  const origin = request.headers.origin
+  if (!origin || (Array.isArray(origin) && origin.length === 0)) return true
+  const value = Array.isArray(origin) ? origin[0] : origin
+  if (!value) return true
+  const allowed = new Set([
+    `http://${expectedHost}:${expectedPort}`,
+    `http://127.0.0.1:${expectedPort}`,
+    `http://localhost:${expectedPort}`
+  ])
+  return allowed.has(value)
+}
+
+function rejectForbiddenOrigin(response: import('node:http').ServerResponse): void {
+  response.writeHead(403, { 'content-type': 'application/json' })
+  response.end(JSON.stringify({ error: 'origin not allowed' }))
 }
 
 async function readMutationBody(request: import('node:http').IncomingMessage) {
@@ -256,8 +279,10 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
   const authDir = options.authDir ?? defaultAuthDir
   const stateDir = options.stateDir ?? defaultStateDir
   let upstreamModels: ModelEntry[] = options.upstreamModels ?? []
+  let upstreamModelsFetchedAt = options.upstreamModels ? Date.now() : 0
   const upstreamFetch = options.upstreamFetch ?? fetch
   let providerUsageByAccount = options.providerUsageByAccount ?? {}
+  let providerUsageFetchedAt = options.providerUsageByAccount ? Date.now() : 0
   const usageStats: UsageStats = {
     totalRequests: 0,
     endpointCounts: {},
@@ -272,7 +297,7 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
   let started: StartedDaemon | null = null
   let settingsStore: SettingsStore | null = null
   let modelGroupRouter = new ModelGroupRouter()
-  const logBuffer = new LogBuffer(1000)
+  const logBuffer = new LogBuffer(200)
   const defaultIconsDir = resolve(installRoot, 'resources/icons')
   const iconsDir = options.iconsDir ?? defaultIconsDir
 
@@ -328,33 +353,36 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
       nextChild.stderr.resume()
 
       if (options.providerUsageByAccount === undefined) {
-        const runUsagePoll = async () => {
+        const runUsagePoll = async (force = false) => {
+          if (!force && isFresh(providerUsageFetchedAt, 15 * 60 * 1000)) return
           try {
             const next = await pollProviderUsage(authDir, upstreamFetch)
             providerUsageByAccount = next
+            providerUsageFetchedAt = Date.now()
           } catch {
             // ignore
           }
         }
-        setTimeout(() => void runUsagePoll(), 2000)
-        setInterval(() => void runUsagePoll(), 5 * 60 * 1000).unref()
+        setTimeout(() => void runUsagePoll(true), 2000)
+        setInterval(() => void runUsagePoll(), 15 * 60 * 1000).unref()
       }
 
       if (options.upstreamModels === undefined) {
-        const pollChildCatalog = async () => {
+        const pollChildCatalog = async (force = false) => {
+          if (!force && isFresh(upstreamModelsFetchedAt, 15 * 60 * 1000)) return
           try {
             const response = await upstreamFetch(`http://${host}:${targetPort}/v1/models`)
             if (!response.ok) return
             const payload = await response.json() as { data?: ModelEntry[] }
             if (Array.isArray(payload.data)) {
               upstreamModels = payload.data.filter((entry) => typeof entry.id === 'string')
+              upstreamModelsFetchedAt = Date.now()
             }
           } catch {
             // child not ready yet
           }
         }
-        setTimeout(() => void pollChildCatalog(), 1500)
-        setInterval(() => void pollChildCatalog(), 60000).unref()
+        setTimeout(() => void pollChildCatalog(true), 1500)
       }
 
       server = createServer(async (request, response) => {
@@ -366,6 +394,19 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
         }
         const urlBasePort = started?.port ?? requestedPort ?? 0
         const url = new URL(request.url ?? '/', `http://${host}:${urlBasePort}`)
+
+        // CSRF defense: mutating relay endpoints must come from same-origin
+        // (or no-origin) callers. The daemon binds to loopback, but any page
+        // the user has open can cross-origin fetch localhost without this.
+        if (request.method === 'POST' && url.pathname.startsWith('/relay/')) {
+          const activePort = started?.port ?? urlBasePort
+          if (!isSafeOrigin(request, host, activePort)) {
+            rejectForbiddenOrigin(response)
+            return
+          }
+        }
+
+        try {
 
         if (request.method === 'GET' && url.pathname === '/') {
           response.writeHead(302, { location: '/dashboard' })
@@ -399,6 +440,20 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
         }
 
         if (request.method === 'GET' && url.pathname === '/relay/models-catalog') {
+          if (options.upstreamModels === undefined && !isFresh(upstreamModelsFetchedAt, 15 * 60 * 1000)) {
+            try {
+              const response = await upstreamFetch(`http://${host}:${targetPort}/v1/models`)
+              if (response.ok) {
+                const payload = await response.json() as { data?: ModelEntry[] }
+                if (Array.isArray(payload.data)) {
+                  upstreamModels = payload.data.filter((entry) => typeof entry.id === 'string')
+                  upstreamModelsFetchedAt = Date.now()
+                }
+              }
+            } catch {
+              // ignore catalog refresh failures
+            }
+          }
           response.writeHead(200, { 'content-type': 'application/json' })
           response.end(JSON.stringify(buildModelsCatalog(upstreamModels, modelGroupRouter.activeGroupNames(), settingsStore?.state.customModels ?? [])))
           return
@@ -644,10 +699,24 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
             method: 'POST',
             headers: { 'content-type': request.headers['content-type'] ?? 'application/json' },
             body,
-            modelGroupRouter
+            modelGroupRouter,
+            stream: true
           })
           response.writeHead(forwarded.status, { 'content-type': forwarded.headers.get('content-type') ?? 'application/json' })
-          response.end(forwarded.text)
+          if (forwarded.bodyStream) {
+            const reader = forwarded.bodyStream.getReader()
+            try {
+              while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                if (value) response.write(Buffer.from(value))
+              }
+            } finally {
+              response.end()
+            }
+          } else {
+            response.end(forwarded.text)
+          }
           return
         }
 
@@ -696,6 +765,19 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
 
         response.writeHead(404)
         response.end()
+        } catch (error) {
+          if (isRequestBodyTooLargeError(error)) {
+            if (!response.headersSent) {
+              response.writeHead(413, { 'content-type': 'application/json' })
+            }
+            response.end(JSON.stringify({ error: { message: error.message, type: 'request_too_large', code: 'request_body_too_large' } }))
+            return
+          }
+          if (!response.headersSent) {
+            response.writeHead(500, { 'content-type': 'application/json' })
+          }
+          response.end(JSON.stringify({ error: { message: (error as Error).message ?? 'internal error', type: 'internal_error' } }))
+        }
       })
 
       await new Promise<void>((resolvePromise, rejectPromise) => {

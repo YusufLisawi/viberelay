@@ -50,5 +50,6 @@ describe('dashboard usage and models visibility', () => {
     expect(html).toContain('claude-sonnet-4-5')
     expect(html).toContain('gpt-5.4')
     expect(html).toContain('high')
+    expect(html).not.toContain('data-catalog=')
   })
 })

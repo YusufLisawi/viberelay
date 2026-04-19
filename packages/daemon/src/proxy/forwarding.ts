@@ -10,19 +10,40 @@ export interface UsageStats {
   accountRotationIndex: Record<string, number>
 }
 
+const MAX_ENDPOINT_KEYS = 64
+const MAX_PROVIDER_KEYS = 32
+const MAX_MODEL_KEYS = 128
+const MAX_ACCOUNT_KEYS_PER_PROVIDER = 64
+
+function incrementBoundedCounter(bucket: Record<string, number>, key: string, maxKeys: number) {
+  bucket[key] = (bucket[key] ?? 0) + 1
+  const keys = Object.keys(bucket)
+  if (keys.length <= maxKeys) return
+  let lowestKey = key
+  let lowestValue = bucket[key]
+  for (const candidate of keys) {
+    if (bucket[candidate] < lowestValue) {
+      lowestKey = candidate
+      lowestValue = bucket[candidate]
+    }
+  }
+  if (lowestKey !== key) {
+    delete bucket[lowestKey]
+  }
+}
+
 export function recordUsage(stats: UsageStats, method: string, path: string, model?: string) {
   stats.totalRequests += 1
-  const key = `${method} ${path}`
-  stats.endpointCounts[key] = (stats.endpointCounts[key] ?? 0) + 1
+  incrementBoundedCounter(stats.endpointCounts, `${method} ${path}`, MAX_ENDPOINT_KEYS)
   if (model) {
-    stats.modelCounts[model] = (stats.modelCounts[model] ?? 0) + 1
+    incrementBoundedCounter(stats.modelCounts, model, MAX_MODEL_KEYS)
   }
 }
 
 export function recordAccountHit(stats: UsageStats, providerType: string, accountFile: string) {
-  stats.providerCounts[providerType] = (stats.providerCounts[providerType] ?? 0) + 1
+  incrementBoundedCounter(stats.providerCounts, providerType, MAX_PROVIDER_KEYS)
   const bucket = stats.accountCounts[providerType] ?? (stats.accountCounts[providerType] = {})
-  bucket[accountFile] = (bucket[accountFile] ?? 0) + 1
+  incrementBoundedCounter(bucket, accountFile, MAX_ACCOUNT_KEYS_PER_PROVIDER)
 }
 
 export function pickNextAccount(stats: UsageStats, providerType: string, activeAccountFiles: string[]): string | undefined {
@@ -80,12 +101,57 @@ export function normalizeRequestBody(body: string) {
     ?? body
 }
 
-export async function readRequestBody(request: import('node:http').IncomingMessage) {
+export const MAX_BODY_BYTES = 100 * 1024 * 1024
+export const UPSTREAM_FETCH_TIMEOUT_MS = 120_000
+
+export class RequestBodyTooLargeError extends Error {
+  readonly code = 'REQUEST_BODY_TOO_LARGE' as const
+  readonly limit: number
+  constructor(limit: number) {
+    super(`request body exceeds ${limit} bytes`)
+    this.name = 'RequestBodyTooLargeError'
+    this.limit = limit
+  }
+}
+
+export function isRequestBodyTooLargeError(error: unknown): error is RequestBodyTooLargeError {
+  return error instanceof RequestBodyTooLargeError
+    || (typeof error === 'object' && error !== null && (error as { code?: string }).code === 'REQUEST_BODY_TOO_LARGE')
+}
+
+export async function readRequestBody(request: import('node:http').IncomingMessage, maxBytes: number = MAX_BODY_BYTES) {
   const chunks: Buffer[] = []
-  for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  let total = 0
+  try {
+    for await (const chunk of request) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+      total += buffer.length
+      if (total > maxBytes) {
+        request.destroy()
+        throw new RequestBodyTooLargeError(maxBytes)
+      }
+      chunks.push(buffer)
+    }
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) throw error
+    throw error
   }
   return Buffer.concat(chunks).toString('utf8')
+}
+
+export interface ForwardedResponse {
+  status: number
+  headers: Headers
+  text: string
+  bodyStream?: ReadableStream<Uint8Array>
+}
+
+function isStreamingResponse(headers: Headers): boolean {
+  const contentType = headers.get('content-type') ?? ''
+  if (contentType.toLowerCase().startsWith('text/event-stream')) return true
+  const transferEncoding = headers.get('transfer-encoding') ?? ''
+  if (transferEncoding.toLowerCase().includes('chunked')) return true
+  return false
 }
 
 export async function forwardProxyRequest(options: {
@@ -96,12 +162,39 @@ export async function forwardProxyRequest(options: {
   method: string
   headers: Record<string, string>
   body: string
-}) {
-  const response = await options.upstreamFetch(`http://${options.host}:${options.targetPort}${options.path}`, {
-    method: options.method,
-    headers: options.headers,
-    body: options.body
-  })
+  timeoutMs?: number
+  stream?: boolean
+}): Promise<ForwardedResponse> {
+  const controller = new AbortController()
+  const timeoutMs = options.timeoutMs ?? UPSTREAM_FETCH_TIMEOUT_MS
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  timer.unref?.()
+  let response: Response
+  try {
+    response = await options.upstreamFetch(`http://${options.host}:${options.targetPort}${options.path}`, {
+      method: options.method,
+      headers: options.headers,
+      body: options.body,
+      signal: controller.signal
+    })
+  } catch (error) {
+    clearTimeout(timer)
+    if ((error as { name?: string }).name === 'AbortError') {
+      const headers = new Headers({ 'content-type': 'application/json' })
+      return {
+        status: 504,
+        headers,
+        text: JSON.stringify({ error: { message: `upstream fetch timed out after ${timeoutMs}ms`, type: 'upstream_timeout' } })
+      }
+    }
+    throw error
+  }
+  clearTimeout(timer)
+
+  if (options.stream && response.body && isStreamingResponse(response.headers)) {
+    return { status: response.status, headers: response.headers, text: '', bodyStream: response.body }
+  }
+
   const text = await response.text()
   return { status: response.status, headers: response.headers, text }
 }
@@ -116,7 +209,8 @@ export async function normalizeAndForward(options: {
   body: string
   modelGroupRouter?: ModelGroupRouter
   onResolved?: (realModel: string) => void
-}) {
+  stream?: boolean
+}): Promise<ForwardedResponse> {
   let normalizedBody = normalizeRequestBody(options.body)
   let targetPath = options.path
   let groupContext: { groupId: string, triedModels: Set<string> } | undefined
@@ -152,7 +246,8 @@ export async function normalizeAndForward(options: {
     path: targetPath,
     method: options.method,
     headers: options.headers,
-    body: normalizedBody
+    body: normalizedBody,
+    stream: options.stream
   })
 
   if (groupContext && [429, 500, 502, 503].includes(first.status)) {
@@ -170,7 +265,8 @@ export async function normalizeAndForward(options: {
         path: failoverPath,
         method: options.method,
         headers: options.headers,
-        body: failoverBody
+        body: failoverBody,
+        stream: options.stream
       })
     }
   }
@@ -184,7 +280,8 @@ export async function normalizeAndForward(options: {
       path: targetPath,
       method: options.method,
       headers: options.headers,
-      body: strippedBody
+      body: strippedBody,
+      stream: options.stream
     })
   }
 
@@ -196,7 +293,8 @@ export async function normalizeAndForward(options: {
       path: targetPath,
       method: options.method,
       headers: options.headers,
-      body: normalizedBody
+      body: normalizedBody,
+      stream: options.stream
     })
   }
 

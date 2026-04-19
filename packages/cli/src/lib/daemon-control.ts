@@ -7,6 +7,7 @@ import process from 'node:process'
 export interface DaemonPaths {
   stateDir: string
   pidFile: string
+  lockFile: string
   logFile: string
   daemonBinary: string
 }
@@ -16,6 +17,7 @@ export function resolveDaemonPaths(): DaemonPaths {
   return {
     stateDir,
     pidFile: join(stateDir, 'daemon.pid'),
+    lockFile: join(stateDir, 'daemon.lock'),
     logFile: join(stateDir, 'daemon.log'),
     daemonBinary: resolveDaemonBinary()
   }
@@ -52,6 +54,52 @@ export async function currentDaemonPid(paths: DaemonPaths): Promise<number | nul
   return isAlive(pid) ? pid : null
 }
 
+/**
+ * Acquire an exclusive lock file using O_CREAT | O_EXCL (the 'wx' flag).
+ * The lock file is written with the current process PID so staleness can be
+ * detected: if the PID in the lock file is not alive AND the daemon PID file
+ * is absent/stale, the lock is stale and can be broken.
+ *
+ * Returns true if the lock was acquired.
+ * Returns false if a live process already holds it.
+ */
+export async function acquireLock(paths: DaemonPaths): Promise<boolean> {
+  await mkdir(paths.stateDir, { recursive: true })
+
+  const tryCreate = async (): Promise<boolean> => {
+    try {
+      const handle = await open(paths.lockFile, 'wx')
+      await handle.writeFile(`${process.pid}\n`, 'utf8')
+      await handle.close()
+      return true
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+      return false
+    }
+  }
+
+  if (await tryCreate()) return true
+
+  // Lock exists — determine if it's stale.
+  // Staleness: the lock-holder PID is dead AND the daemon PID is also absent/dead.
+  const lockHolderPid = await readPid(paths.lockFile)
+  const daemonPid = await readPid(paths.pidFile)
+  const lockHolderAlive = lockHolderPid !== null && isAlive(lockHolderPid)
+  const daemonAlive = daemonPid !== null && isAlive(daemonPid)
+
+  if (!lockHolderAlive && !daemonAlive) {
+    // Stale lock: remove and retry once.
+    await rm(paths.lockFile, { force: true })
+    if (await tryCreate()) return true
+  }
+
+  return false
+}
+
+export async function releaseLock(paths: DaemonPaths): Promise<void> {
+  await rm(paths.lockFile, { force: true })
+}
+
 export async function spawnDaemon(paths: DaemonPaths): Promise<number> {
   await mkdir(paths.stateDir, { recursive: true })
   await access(paths.daemonBinary)
@@ -81,6 +129,7 @@ export async function killDaemon(pid: number): Promise<void> {
 
 export async function clearPidFile(paths: DaemonPaths): Promise<void> {
   await rm(paths.pidFile, { force: true })
+  await rm(paths.lockFile, { force: true })
 }
 
 export function isConnectionRefused(error: unknown): boolean {

@@ -5,9 +5,16 @@ import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
-const repoRoot = resolve(currentDirectory, '../../../..')
-const bundledBinaryPath = resolve(repoRoot, 'resources/cli-proxy-api-plus')
-const bundledConfigPath = resolve(repoRoot, 'resources/config.yaml')
+const devRepoRoot = resolve(currentDirectory, '../../../..')
+// Mirror the pattern in packages/daemon/src/index.ts: when running as a Bun
+// --compile binary, import.meta.url lives inside the read-only /$bunfs/
+// virtual filesystem, so we anchor resources on process.execPath instead.
+const isCompiled = import.meta.url.startsWith('file:///$bunfs/') || import.meta.url.includes('/$bunfs/root/')
+const installRoot = isCompiled ? resolve(dirname(process.execPath), '..') : devRepoRoot
+const bundledBinaryPath = resolve(installRoot, process.platform === 'win32' ? 'resources/cli-proxy-api-plus.exe' : 'resources/cli-proxy-api-plus')
+const bundledConfigPath = resolve(installRoot, 'resources/config.yaml')
+
+const MAX_OAUTH_STREAM_BYTES = 1 * 1024 * 1024
 
 export async function saveApiKeyAccount(authDir: string, provider: 'opencode' | 'nvidia' | 'ollama' | 'openrouter', apiKey: string) {
   await mkdir(authDir, { recursive: true })
@@ -33,9 +40,32 @@ export async function launchOAuthLogin(provider: 'claude' | 'codex' | 'github-co
   const loginArg = argsByProvider[provider]
   return new Promise<{ ok: boolean, message: string }>((resolvePromise) => {
     let resolved = false
+    const timers: NodeJS.Timeout[] = []
+    const clearTimers = () => {
+      while (timers.length > 0) {
+        const timer = timers.pop()
+        if (timer) clearTimeout(timer)
+      }
+    }
     const finish = (result: { ok: boolean, message: string }) => {
       if (resolved) return
       resolved = true
+      clearTimers()
+      // Ensure the child process is not orphaned when we early-resolve.
+      if (child.exitCode === null && child.signalCode === null) {
+        const grace = setTimeout(() => {
+          if (child.exitCode === null && child.signalCode === null) {
+            try { child.kill('SIGTERM') } catch {}
+          }
+        }, 30_000)
+        grace.unref()
+        const hard = setTimeout(() => {
+          if (child.exitCode === null && child.signalCode === null) {
+            try { child.kill('SIGKILL') } catch {}
+          }
+        }, 35_000)
+        hard.unref()
+      }
       resolvePromise(result)
     }
 
@@ -46,18 +76,38 @@ export async function launchOAuthLogin(provider: 'claude' | 'codex' | 'github-co
 
     let stdout = ''
     let stderr = ''
-    child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8') })
-    child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8') })
+    let stdoutTruncated = false
+    let stderrTruncated = false
+    const appendCapped = (current: string, chunk: string, truncated: boolean): { value: string, truncated: boolean } => {
+      if (truncated) return { value: current, truncated: true }
+      if (current.length + chunk.length <= MAX_OAUTH_STREAM_BYTES) {
+        return { value: current + chunk, truncated: false }
+      }
+      const remaining = MAX_OAUTH_STREAM_BYTES - current.length
+      return { value: current + (remaining > 0 ? chunk.slice(0, remaining) : ''), truncated: true }
+    }
+    child.stdout.on('data', (chunk: Buffer) => {
+      const next = appendCapped(stdout, chunk.toString('utf8'), stdoutTruncated)
+      stdout = next.value
+      stdoutTruncated = next.truncated
+    })
+    child.stderr.on('data', (chunk: Buffer) => {
+      const next = appendCapped(stderr, chunk.toString('utf8'), stderrTruncated)
+      stderr = next.value
+      stderrTruncated = next.truncated
+    })
 
     if (provider === 'codex') {
-      setTimeout(() => {
+      const poke = setTimeout(() => {
         if (child.exitCode === null && child.signalCode === null) {
           try { child.stdin.write('\n') } catch {}
         }
-      }, 5000).unref()
+      }, 5000)
+      poke.unref()
+      timers.push(poke)
     }
 
-    setTimeout(() => {
+    const earlyFinish = setTimeout(() => {
       const combined = `${stdout}\n${stderr}`
       if (child.exitCode === null && child.signalCode === null) {
         if (combined.includes('Opening browser') || combined.includes('authorization') || combined.includes('device code')) {
@@ -66,7 +116,9 @@ export async function launchOAuthLogin(provider: 'claude' | 'codex' | 'github-co
         }
         finish({ ok: true, message: 'Authentication process started. Complete login in browser.' })
       }
-    }, provider === 'github-copilot' ? 2000 : 1000).unref()
+    }, provider === 'github-copilot' ? 2000 : 1000)
+    earlyFinish.unref()
+    timers.push(earlyFinish)
 
     child.on('close', (code) => {
       const combined = `${stderr}\n${stdout}`.trim()

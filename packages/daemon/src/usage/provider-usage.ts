@@ -20,6 +20,18 @@ interface AccountRef {
 
 const CLAUDE_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage'
 const CODEX_USAGE_URL = 'https://chatgpt.com/backend-api/wham/usage'
+const USAGE_FETCH_TIMEOUT_MS = 10_000
+
+async function fetchWithTimeout(fetchImpl: typeof fetch, url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  timer.unref?.()
+  try {
+    return await fetchImpl(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 export async function pollProviderUsage(authDir: string, fetchImpl: typeof fetch = fetch): Promise<Record<string, Record<string, UsageWindow>>> {
   const accounts = await loadAccountsWithTokens(authDir)
@@ -70,12 +82,12 @@ function secondsUntil(iso?: string): number | undefined {
 }
 
 async function fetchClaude(account: AccountRef, fetchImpl: typeof fetch): Promise<UsageWindow | undefined> {
-  const response = await fetchImpl(CLAUDE_USAGE_URL, {
+  const response = await fetchWithTimeout(fetchImpl, CLAUDE_USAGE_URL, {
     headers: {
       authorization: `Bearer ${account.accessToken}`,
       'anthropic-beta': 'oauth-2025-04-20'
     }
-  })
+  }, USAGE_FETCH_TIMEOUT_MS)
   if (response.status === 401 || response.status === 403) {
     return { status: 'invalid_credentials' }
   }
@@ -99,7 +111,7 @@ async function fetchClaude(account: AccountRef, fetchImpl: typeof fetch): Promis
 async function fetchCodex(account: AccountRef, fetchImpl: typeof fetch): Promise<UsageWindow | undefined> {
   const headers: Record<string, string> = { authorization: `Bearer ${account.accessToken}` }
   if (account.accountId) headers['chatgpt-account-id'] = account.accountId
-  const response = await fetchImpl(CODEX_USAGE_URL, { headers })
+  const response = await fetchWithTimeout(fetchImpl, CODEX_USAGE_URL, { headers }, USAGE_FETCH_TIMEOUT_MS)
   if (response.status === 401 || response.status === 403) {
     return { status: 'invalid_credentials' }
   }

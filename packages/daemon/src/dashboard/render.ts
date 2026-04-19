@@ -157,7 +157,6 @@ function renderBody(
     .concat(Object.keys(providerUsage).filter((provider) => !['codex', 'claude'].includes(provider)).sort())
   const modelGroupEntries = settings?.modelGroups ?? []
   const allCatalogModels = catalogEntries.flatMap(([owner, models]) => models.map((model) => ({ owner, id: model.id })))
-  const catalogJson = JSON.stringify(allCatalogModels)
   const groupsPresent = groups.includes.bind(groups)
 
   return `
@@ -471,7 +470,7 @@ function renderBody(
       </div>
     </div>
 
-    <div class="modal" id="group-modal" data-catalog='${catalogJson.replace(/'/g, '&#39;')}' hidden>
+    <div class="modal" id="group-modal" hidden>
       <div class="modal-backdrop" data-close-modal></div>
       <div class="modal-card">
         <div class="modal-head">
@@ -495,7 +494,7 @@ function renderBody(
 
           <label class="field-label" style="margin-top:8px;">Add model</label>
           <div class="form-row">
-            <input type="search" id="model-search" placeholder="Search ${allCatalogModels.length} available models..." autocomplete="off" />
+            <input type="search" id="model-search" placeholder="Search ${allCatalogModels.length} available models..." autocomplete="off" data-catalog-count="${allCatalogModels.length}" />
             <button type="button" id="model-add-btn" class="btn">Add</button>
           </div>
           <div id="model-suggest" class="suggest" hidden></div>
@@ -977,7 +976,8 @@ const SCRIPT = `
     if (!modal || modal._wired) return;
     modal._wired = true;
     let catalog = [];
-    try { catalog = JSON.parse(modal.dataset.catalog || '[]'); } catch (_) {}
+    let catalogLoaded = false;
+    let catalogPromise = null;
 
     const search = document.getElementById('model-search');
     const suggest = document.getElementById('model-suggest');
@@ -991,9 +991,38 @@ const SCRIPT = `
     const idField = document.getElementById('group-id-field');
     const nameErr = document.getElementById('group-name-error');
 
-    const showSuggest = (q) => {
+    const loadCatalog = async () => {
+      if (catalogLoaded) return catalog;
+      if (!catalogPromise) {
+        catalogPromise = fetch('/relay/models-catalog')
+          .then((res) => res.ok ? res.json() : Promise.reject(new Error('catalog load failed')))
+          .then((data) => {
+            catalog = Object.entries(data.groups ?? {}).flatMap(([owner, models]) =>
+              Array.isArray(models) ? models.map((model) => ({ owner, id: model.id })) : []
+            );
+            catalogLoaded = true;
+            return catalog;
+          })
+          .finally(() => {
+            if (!catalogLoaded) catalogPromise = null;
+          });
+      }
+      return catalogPromise;
+    };
+
+    const showSuggest = async (q) => {
       const query = q.trim().toLowerCase();
       if (!query) { suggest.hidden = true; suggest.innerHTML = ''; return; }
+      if (!catalogLoaded) {
+        suggest.hidden = false;
+        suggest.innerHTML = '<div class="suggest-empty">Loading models…</div>';
+        try {
+          await loadCatalog();
+        } catch (_) {
+          suggest.innerHTML = '<div class="suggest-empty">Could not load catalog. Use manual entry below.</div>';
+          return;
+        }
+      }
       const current = new Set(modelsList());
       const matches = catalog
         .filter((m) => (m.owner + '/' + m.id).toLowerCase().includes(query))
@@ -1019,13 +1048,21 @@ const SCRIPT = `
       suggest.hidden = false;
     };
 
-    search.addEventListener('input', () => showSuggest(search.value));
-    search.addEventListener('focus', () => showSuggest(search.value));
+    search.addEventListener('input', () => { void showSuggest(search.value); });
+    search.addEventListener('focus', () => { void showSuggest(search.value); });
     search.addEventListener('blur', () => setTimeout(() => { suggest.hidden = true; }, 150));
-    addBtn.addEventListener('click', () => {
+    addBtn.addEventListener('click', async () => {
       const q = search.value.trim();
       if (!q) return;
-      const label = q.includes('/') ? q : catalog.find((m) => m.id === q) ? catalog.find((m) => m.id === q).owner + '/' + q : q;
+      if (!catalogLoaded && !q.includes('/')) {
+        try {
+          await loadCatalog();
+        } catch {
+          // fall back to raw input
+        }
+      }
+      const exact = catalog.find((m) => m.id === q);
+      const label = q.includes('/') ? q : exact ? exact.owner + '/' + q : q;
       setModels(modelsList().concat(label));
       search.value = '';
       suggest.hidden = true;

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { chmod, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir, platform, arch, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -10,6 +11,7 @@ export interface UpdateCommandOptions {
   prefix?: string
   check?: boolean
   force?: boolean
+  strict?: boolean
   channel?: 'stable' | 'nightly'
   fetchImpl?: typeof fetch
 }
@@ -21,12 +23,34 @@ interface GitHubRelease {
   body?: string
 }
 
+/**
+ * Validate that a download URL is hosted on github.com or a github.com subdomain.
+ * This prevents a tampered GitHub API response from redirecting the download
+ * (and any bearer token) to an attacker-controlled host.
+ */
+function assertGitHubUrl(url: string): void {
+  let hostname: string
+  try {
+    hostname = new URL(url).hostname
+  } catch {
+    throw new Error(`invalid asset URL: ${url}`)
+  }
+  const isGitHub =
+    hostname === 'github.com' ||
+    hostname.endsWith('.github.com') ||
+    hostname.endsWith('.githubusercontent.com')
+  if (!isGitHub) {
+    throw new Error(`refusing to fetch asset from non-GitHub host: ${hostname}`)
+  }
+}
+
 export async function runUpdateCommand(options: UpdateCommandOptions = {}): Promise<string> {
   const repo = options.repo ?? process.env.VIBERELAY_REPO ?? UPSTREAM_REPO
   const currentVersion = options.currentVersion ?? VERSION
   const prefix = options.prefix ?? defaultPrefix()
   const doFetch = options.fetchImpl ?? fetch
   const channel = options.channel ?? 'stable'
+  const strict = options.strict ?? false
 
   const release = await fetchRelease(repo, channel, doFetch)
   const latest = normalizeTag(release.tag_name)
@@ -46,11 +70,30 @@ export async function runUpdateCommand(options: UpdateCommandOptions = {}): Prom
     throw new Error(`release ${release.tag_name} has no asset ${assetName}. Available: ${release.assets.map((a) => a.name).join(', ')}`)
   }
 
+  // Validate that the download URL is on github.com before we touch it.
+  assertGitHubUrl(asset.browser_download_url)
+
+  // Look for the companion checksum asset.
+  const checksumAssetName = `${assetName}.sha256`
+  const checksumAsset = release.assets.find((entry) => entry.name === checksumAssetName)
+
   const tmpDir = join(tmpdir(), `viberelay-update-${Date.now()}`)
   await mkdir(tmpDir, { recursive: true })
   try {
     const archivePath = join(tmpDir, assetName)
     await downloadTo(asset.browser_download_url, archivePath, doFetch)
+
+    if (checksumAsset) {
+      assertGitHubUrl(checksumAsset.browser_download_url)
+      const checksumPath = join(tmpDir, checksumAssetName)
+      await downloadTo(checksumAsset.browser_download_url, checksumPath, doFetch)
+      await verifyChecksum(archivePath, checksumPath)
+    } else if (strict) {
+      throw new Error(`no checksum asset found for ${assetName} and --strict is enabled`)
+    } else {
+      console.warn(`⚠ no checksum asset found for ${assetName}; skipping verification`)
+    }
+
     const payloadDir = await extract(archivePath, tmpDir, target.ext)
     await swapPrefix(payloadDir, prefix, target.windows)
     await writeFile(join(prefix, 'VERSION'), `${latest}\n`)
@@ -104,6 +147,26 @@ async function downloadTo(url: string, destination: string, doFetch: typeof fetc
   if (!response.ok) throw new Error(`download failed: ${response.status} ${response.statusText}`)
   await mkdir(dirname(destination), { recursive: true })
   await writeFile(destination, Buffer.from(await response.arrayBuffer()))
+}
+
+/**
+ * Compute the SHA-256 of `filePath` and compare it against the expected hash
+ * found in `checksumFilePath`. The checksum file format is either:
+ *   <hex>  <filename>
+ * or just a bare hex digest (one per line).
+ */
+async function verifyChecksum(filePath: string, checksumFilePath: string): Promise<void> {
+  const [fileBytes, checksumRaw] = await Promise.all([
+    readFile(filePath),
+    readFile(checksumFilePath, 'utf8')
+  ])
+  const actual = createHash('sha256').update(fileBytes).digest('hex')
+  // The checksum file may contain "<hash>  <filename>" or just "<hash>".
+  const expected = checksumRaw.trim().split(/\s+/)[0]?.toLowerCase()
+  if (!expected) throw new Error('checksum file is empty or malformed')
+  if (actual !== expected) {
+    throw new Error(`checksum mismatch for ${filePath}: expected ${expected}, got ${actual}`)
+  }
 }
 
 async function extract(archive: string, into: string, ext: 'tar.gz' | 'zip'): Promise<string> {

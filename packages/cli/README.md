@@ -60,14 +60,17 @@ Child `cli-proxy-api-plus` runs on `127.0.0.1:8328` — managed automatically.
 | `viberelay accounts` | Per-provider account summary |
 | `viberelay usage` | Totals + 5h / weekly quota windows |
 | `viberelay dashboard` | Open web UI in browser |
-| `viberelay profile list` | List local profiles |
-| `viberelay profile show <name>` | Print a profile's JSON |
+| `viberelay profile list` &nbsp;(`p ls`) | List local profiles |
+| `viberelay profile show <name>` &nbsp;(`p cat`) | Print a profile's JSON |
 | `viberelay profile path <name>` | Print a profile's file path |
-| `viberelay profile create [name]` | Interactive wizard — new profile pointing at viberelay |
-| `viberelay profile edit <name>` | Open in `$VISUAL`/`$EDITOR`, re-validates JSON on save |
+| `viberelay profile create [name]` &nbsp;(`p c`, `p new`) | Interactive wizard — new profile pointing at viberelay |
+| `viberelay profile edit <name>` &nbsp;(`p e`) | Open in `$VISUAL`/`$EDITOR`, re-validates JSON on save |
 | `viberelay profile set <name> [flags]` | Patch specific fields in place |
-| `viberelay profile delete <name>` | Remove a profile |
-| `viberelay profile run [-d] <name> [claude args]` | Launch `claude` with that profile's env |
+| `viberelay profile delete <name>` &nbsp;(`p rm`) | Remove a profile |
+| `viberelay profile run [-d] <name> [claude args]` &nbsp;(`p r`, `p exec`) | Launch `claude` with that profile's env |
+| **`viberelay run [-d] <name>`** | Top-level shortcut for `profile run` (also: `r`, `exec`) |
+| `viberelay autostart [enable\|disable\|status]` | Enable/disable daemon auto-start on login (friendly alias for `service`) |
+| `viberelay menubar [install\|uninstall\|status]` | macOS: install SwiftBar menu-bar plugin showing live pool usage |
 | `viberelay update` | Self-upgrade to the latest release |
 | `viberelay update --check` | Report if an update is available without installing |
 | `viberelay update --channel nightly` | Follow the rolling `main` build |

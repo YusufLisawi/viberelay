@@ -29,6 +29,7 @@ Daemon lifecycle:
   logs [N]           Tail last N lines of the daemon log (default 50)
 
 Service registration (auto-start on login):
+  autostart [enable|disable|status]   Alias for \`service\` with friendly verbs
   service install    Register launchd (macOS) or systemd --user (Linux)
   service uninstall  Remove the service
   service status     Query the service manager
@@ -80,6 +81,14 @@ async function main() {
     case 'service':
       process.stdout.write(await runServiceCommand({}) + '\n')
       return
+    case 'autostart': {
+      // Alias: `autostart [enable|disable|status]` → `service [install|uninstall|status]`
+      const sub = process.argv[3] ?? 'status'
+      const map: Record<string, string> = { enable: 'install', on: 'install', disable: 'uninstall', off: 'uninstall', status: 'status' }
+      const translated = map[sub] ?? sub
+      process.stdout.write(await runServiceCommand({ argv: [translated, ...process.argv.slice(4)] }) + '\n')
+      return
+    }
     case 'accounts':
       process.stdout.write(await runAccountsCommand({ baseUrl }) + '\n')
       return

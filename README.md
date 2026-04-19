@@ -20,15 +20,45 @@ curl -fsSL https://github.com/YusufLisawi/viberelay/releases/latest/download/ins
 irm https://github.com/YusufLisawi/viberelay/releases/latest/download/install.ps1 | iex
 ```
 
-Run the daemon, create a profile, launch Claude Code through the proxy:
+The installer asks once whether to enable daemon auto-start at login (launchd
+on macOS, `systemd --user` on Linux). Say yes and viberelay is up from the next
+boot onward — no manual `start` needed.
+
+End-to-end, from zero to running Claude Code through the proxy:
 
 ```bash
-viberelay-daemon &                       # listens on 127.0.0.1:8327
-viberelay profile create                 # interactive wizard: name + model group aliases
-viberelay profile run --dangerous vibe   # spawns `claude` with that profile's env
+viberelay status          # daemon + accounts summary
+viberelay dashboard       # sign in to providers via the web UI (or `viberelay accounts` in CLI)
+viberelay p c             # interactive profile wizard — name + opus/sonnet/haiku groups
+viberelay run -d vibe     # launch `claude` with that profile's env (-d = --dangerously-skip-permissions)
 ```
 
-Self-update:
+### Aliases
+
+Muscle-memory shortcuts so you never type `viberelay profile run --dangerous` again.
+
+| Full | Short |
+|---|---|
+| `viberelay profile run --dangerous <name>` | `viberelay run -d <name>` |
+| `viberelay profile list` | `viberelay p ls` |
+| `viberelay profile create` | `viberelay p c` |
+| `viberelay profile edit <n>` | `viberelay p e <n>` |
+| `viberelay profile delete <n>` | `viberelay p rm <n>` |
+| `viberelay profile show <n>` | `viberelay p cat <n>` |
+| `viberelay service install` | `viberelay autostart enable` |
+| `viberelay service uninstall` | `viberelay autostart disable` |
+
+### macOS menu bar (optional)
+
+```bash
+viberelay menubar install   # auto-installs SwiftBar via brew, drops plugin in place, launches it
+```
+
+Click the menu-bar icon to see pool-wide usage, per-account 5h/weekly windows,
+the next account about to rotate in (▶), and the last model group + real model
+that was routed.
+
+### Self-update
 
 ```bash
 viberelay update --check                 # latest stable

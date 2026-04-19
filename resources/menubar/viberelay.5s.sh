@@ -63,6 +63,10 @@ providers = data.get("provider_counts", {}) or {}
 pu = data.get("provider_usage", {}) or {}
 labels = data.get("account_labels", {}) or {}
 accs = data.get("account_counts", {}) or {}
+next_by_provider = data.get("next_account_by_provider", {}) or {}
+last_group = data.get("last_group")
+last_model = data.get("last_model")
+last_at = data.get("last_at")
 
 # Pool pressure: average used% across every account × both windows.
 used_samples = []
@@ -103,6 +107,11 @@ if used_samples:
         )
 else:
     line(f"{total} req", color="#aaa", size=11)
+
+if last_group or last_model:
+    lg = last_group or "—"
+    lm = last_model or "—"
+    line(f"Last: {lg} → {lm}", color="#88c", size=11, font="Menlo")
 print("---")
 
 def fmt_reset_seconds(seconds):
@@ -132,6 +141,7 @@ for prov in provider_order:
     files = list(dict.fromkeys(list(windows.keys()) + list(hits.keys())))
     if not files:
         continue
+    next_file = next_by_provider.get(prov)
     line(prov.upper(), color="#888", size=10)
     for file in files:
         label = (labels.get(prov, {}) or {}).get(file, file.replace(".json", ""))
@@ -147,7 +157,12 @@ for prov in provider_order:
         if req_count:
             bits.append(f"{req_count} req")
         detail = f"  ({', '.join(bits)})" if bits else ""
-        line(f"{label}{detail}", font="Menlo", size=12)
+        marker = "▶ " if file == next_file else "  "
+        color = "#7ec27e" if file == next_file else None
+        attrs = {"font": "Menlo", "size": 12}
+        if color:
+            attrs["color"] = color
+        line(f"{marker}{label}{detail}", **attrs)
 
 print("---")
 line("Open Dashboard", href="http://127.0.0.1:8327/dashboard")

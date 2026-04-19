@@ -27,7 +27,7 @@ export class ModelGroupRouter {
     this.#counters[group.id] = (index + 1) % group.models.length
     const realModel = group.models[index]!
     this.#lastResolvedModels[group.id] = realModel
-    return { groupId: group.id, realModel }
+    return { groupId: group.id, groupName: group.name, realModel }
   }
 
   failoverModel(groupId: string, tried: Set<string>) {

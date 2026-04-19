@@ -8,6 +8,11 @@ export interface UsageStats {
   modelCounts: Record<string, number>
   accountCounts: Record<string, Record<string, number>>
   accountRotationIndex: Record<string, number>
+  lastGroup?: string
+  lastModel?: string
+  lastProvider?: string
+  lastAccount?: string
+  lastAt?: string
 }
 
 const MAX_ENDPOINT_KEYS = 64
@@ -61,7 +66,12 @@ export function buildUsagePayload(stats: UsageStats, iso8601: (date: Date) => st
     endpoint_counts: { ...stats.endpointCounts },
     provider_counts: { ...stats.providerCounts },
     model_counts: { ...stats.modelCounts },
-    account_counts: JSON.parse(JSON.stringify(stats.accountCounts)) as Record<string, Record<string, number>>
+    account_counts: JSON.parse(JSON.stringify(stats.accountCounts)) as Record<string, Record<string, number>>,
+    last_group: stats.lastGroup,
+    last_model: stats.lastModel,
+    last_provider: stats.lastProvider,
+    last_account: stats.lastAccount,
+    last_at: stats.lastAt
   }
 }
 
@@ -208,7 +218,7 @@ export async function normalizeAndForward(options: {
   headers: Record<string, string>
   body: string
   modelGroupRouter?: ModelGroupRouter
-  onResolved?: (realModel: string) => void
+  onResolved?: (realModel: string, groupName?: string) => void
   stream?: boolean
 }): Promise<ForwardedResponse> {
   let normalizedBody = normalizeRequestBody(options.body)
@@ -226,7 +236,7 @@ export async function normalizeAndForward(options: {
         const provider = extractProvider(resolved.realModel)
         targetPath = provider ? providerScopedPath(targetPath, provider) : targetPath
         groupContext = { groupId: resolved.groupId, triedModels: new Set([resolved.realModel]) }
-        options.onResolved?.(resolved.realModel)
+        options.onResolved?.(resolved.realModel, resolved.groupName)
       } else if (model) {
         const provider = extractProvider(model)
         if (provider) {

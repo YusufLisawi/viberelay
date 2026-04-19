@@ -161,11 +161,20 @@ function buildModelsCatalog(upstreamModels: ModelEntry[], groupNames: string[], 
   return { groups }
 }
 
-function buildExtendedUsagePayload(stats: UsageStats, iso8601Fn: (date: Date) => string, providerUsageByAccount: Record<string, Record<string, ProviderUsageWindow>>, accountLabels: Record<string, Record<string, string>> = {}) {
+function buildExtendedUsagePayload(stats: UsageStats, iso8601Fn: (date: Date) => string, providerUsageByAccount: Record<string, Record<string, ProviderUsageWindow>>, accountLabels: Record<string, Record<string, string>> = {}, activeByType?: Map<string, string[]>) {
+  const next_account_by_provider: Record<string, string> = {}
+  if (activeByType) {
+    for (const [provider, files] of activeByType.entries()) {
+      if (files.length === 0) continue
+      const idx = (stats.accountRotationIndex[provider] ?? 0) % files.length
+      next_account_by_provider[provider] = files[idx]!
+    }
+  }
   return {
     ...buildUsagePayload(stats, iso8601Fn),
     provider_usage: providerUsageByAccount,
-    account_labels: accountLabels
+    account_labels: accountLabels,
+    next_account_by_provider
   }
 }
 
@@ -434,8 +443,9 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
 
         if (request.method === 'GET' && url.pathname === '/usage') {
           const usageAccounts = await loadVisibleAccounts(authDir, settingsStore?.state)
+          const activeByType = await activeAccountsByType(authDir, settingsStore?.state)
           response.writeHead(200, { 'content-type': 'application/json' })
-          response.end(JSON.stringify(buildExtendedUsagePayload(usageStats, iso8601, providerUsageByAccount, buildAccountLabels(usageAccounts))))
+          response.end(JSON.stringify(buildExtendedUsagePayload(usageStats, iso8601, providerUsageByAccount, buildAccountLabels(usageAccounts), activeByType)))
           return
         }
 
@@ -681,15 +691,22 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
           const activeByType = await activeAccountsByType(authDir, settingsStore?.state)
           recordUsage(usageStats, 'POST', url.pathname)
           const forwarded = await normalizeAndForward({
-            onResolved: (realModel) => {
+            onResolved: (realModel, groupName) => {
               try {
                 usageStats.modelCounts[realModel] = (usageStats.modelCounts[realModel] ?? 0) + 1
                 const provider = extractProvider(realModel)
                 const accountType = mapProviderToAccountType(provider, realModel)
+                usageStats.lastGroup = groupName
+                usageStats.lastModel = realModel
+                usageStats.lastProvider = accountType ?? provider
+                usageStats.lastAt = iso8601(new Date())
                 if (!accountType) return
                 const files = activeByType.get(accountType) ?? []
                 const nextFile = pickNextAccount(usageStats, accountType, files)
-                if (nextFile) recordAccountHit(usageStats, accountType, nextFile)
+                if (nextFile) {
+                  recordAccountHit(usageStats, accountType, nextFile)
+                  usageStats.lastAccount = nextFile
+                }
               } catch { /* best-effort */ }
             },
             upstreamFetch,

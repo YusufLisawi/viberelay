@@ -109,12 +109,28 @@ main() {
   esac
 
   # Auto-register the OS service so the daemon comes up on every login.
-  if [ "${VIBERELAY_NO_SERVICE:-0}" != "1" ]; then
+  # Prompt the user when a TTY is available; default to yes when piped without
+  # a controlling terminal (e.g. curl | bash from a script).
+  want_service=1
+  if [ "${VIBERELAY_NO_SERVICE:-0}" = "1" ]; then
+    want_service=0
+  elif [ "${VIBERELAY_AUTO_SERVICE:-}" = "1" ]; then
+    want_service=1
+  elif [ -r /dev/tty ]; then
+    printf '\n\033[1;36m?\033[0m Start viberelay automatically at login? [Y/n] '
+    IFS= read -r ans < /dev/tty || ans=''
+    case "$ans" in [Nn]*) want_service=0 ;; esac
+  fi
+
+  if [ "$want_service" = "1" ]; then
     if "$PREFIX/bin/viberelay" service install >/dev/null 2>&1; then
       info "registered viberelay-daemon with the OS service manager"
+      info "disable later with:  viberelay autostart disable"
     else
       info "warning: service registration failed; start manually with: viberelay start"
     fi
+  else
+    info "skipping autostart; enable later with:  viberelay autostart enable"
   fi
 
   info "done — try: viberelay status"

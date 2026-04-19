@@ -8,8 +8,8 @@ describe('model group router', () => {
       { id: 'g1', name: 'high', models: ['claude', 'codex'], enabled: true }
     ])
 
-    expect(router.resolveModel('high')).toEqual({ groupId: 'g1', realModel: 'claude' })
-    expect(router.resolveModel('high')).toEqual({ groupId: 'g1', realModel: 'codex' })
+    expect(router.resolveModel('high')).toEqual({ groupId: 'g1', groupName: 'high', realModel: 'claude' })
+    expect(router.resolveModel('high')).toEqual({ groupId: 'g1', groupName: 'high', realModel: 'codex' })
     expect(router.lastResolvedModelsByGroupId()).toEqual({ g1: 'codex' })
   })
 

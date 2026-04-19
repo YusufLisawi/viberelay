@@ -1,5 +1,8 @@
+import { isConnectionRefused } from '../lib/daemon-control.js'
+
 export interface UsageCommandOptions {
   baseUrl: string
+  color?: boolean
 }
 
 interface UsageWindow {
@@ -20,6 +23,31 @@ interface UsagePayload {
   provider_usage?: Record<string, Record<string, UsageWindow>>
 }
 
+const ANSI = {
+  reset: '\x1b[0m',
+  bold: '\x1b[1m',
+  dim: '\x1b[2m',
+  black: '\x1b[30m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m',
+  white: '\x1b[37m',
+  gray: '\x1b[90m',
+  brightGreen: '\x1b[92m',
+  brightYellow: '\x1b[93m',
+  brightCyan: '\x1b[96m'
+}
+
+function paint(enabled: boolean) {
+  if (enabled) return ANSI
+  const noop: Record<keyof typeof ANSI, string> = { ...ANSI }
+  for (const key of Object.keys(noop) as Array<keyof typeof ANSI>) noop[key] = ''
+  return noop
+}
+
 function formatReset(seconds?: number) {
   if (seconds === undefined || seconds <= 0) return '—'
   if (seconds < 60) return `${Math.round(seconds)}s`
@@ -34,23 +62,43 @@ function accountLabel(file: string, provider: string, labels?: Record<string, Re
   return file.replace(/\.json$/, '')
 }
 
-import { isConnectionRefused } from '../lib/daemon-control.js'
+function bar(percentUsed: number, width: number, c: ReturnType<typeof paint>) {
+  const pct = Math.max(0, Math.min(100, percentUsed))
+  const filled = Math.round((pct / 100) * width)
+  const empty = width - filled
+  const color = pct >= 90 ? c.red : pct >= 70 ? c.yellow : c.green
+  return `${color}${'█'.repeat(filled)}${c.gray}${'░'.repeat(empty)}${c.reset}`
+}
 
-export async function runUsageCommand(options: UsageCommandOptions) {
-  let usage: UsagePayload
-  try {
-    const response = await fetch(`${options.baseUrl}/usage`)
-    usage = (await response.json()) as UsagePayload
-  } catch (error) {
-    if (isConnectionRefused(error)) return 'viberelay-daemon not running — start it with: viberelay start'
-    throw error
-  }
-  const lines: string[] = []
-  lines.push(`requests ${usage.total_requests}`)
+function padEnd(s: string, len: number) {
+  const visible = s.replace(/\x1b\[[0-9;]*m/g, '')
+  if (visible.length >= len) return s
+  return s + ' '.repeat(len - visible.length)
+}
+
+function renderUsage(usage: UsagePayload, opts: { color: boolean; timestamp?: boolean }): string {
+  const c = paint(opts.color)
+  const out: string[] = []
+  const now = new Date()
+  const ts = now.toLocaleTimeString()
+
+  const header = `${c.bold}${c.brightCyan}━━ viberelay usage ━━${c.reset}`
+  out.push(opts.timestamp ? `${header}  ${c.dim}${ts}${c.reset}` : header)
+  out.push('')
+  out.push(`${c.dim}total requests${c.reset}  ${c.bold}${c.brightGreen}${usage.total_requests}${c.reset}`)
 
   const providerEntries = Object.entries(usage.provider_counts ?? {}).sort((l, r) => r[1] - l[1])
   if (providerEntries.length > 0) {
-    lines.push('by provider: ' + providerEntries.map(([name, count]) => `${name} ${count}`).join(', '))
+    const maxCount = Math.max(...providerEntries.map(([, n]) => n), 1)
+    const maxNameLen = Math.max(...providerEntries.map(([n]) => n.length))
+    out.push('')
+    out.push(`${c.bold}by provider${c.reset}`)
+    for (const [name, count] of providerEntries) {
+      const width = 24
+      const filled = Math.round((count / maxCount) * width)
+      const b = `${c.cyan}${'█'.repeat(filled)}${c.gray}${'░'.repeat(width - filled)}${c.reset}`
+      out.push(`  ${padEnd(name, maxNameLen)}  ${b}  ${c.bold}${count}${c.reset}`)
+    }
   }
 
   const accountCounts = usage.account_counts ?? {}
@@ -62,22 +110,94 @@ export async function runUsageCommand(options: UsageCommandOptions) {
       ...Object.keys(providerUsage[provider] ?? {})
     ])
     if (accounts.size === 0) continue
-    lines.push(`[${provider}]`)
+    out.push('')
+    out.push(`${c.bold}${c.magenta}▸ ${provider}${c.reset}`)
     for (const file of Array.from(accounts).sort()) {
       const hits = accountCounts[provider]?.[file] ?? 0
       const window = providerUsage[provider]?.[file]
-      const parts: string[] = [`${hits} req`]
+      const label = accountLabel(file, provider, usage.account_labels)
+      out.push(`  ${c.bold}${label}${c.reset}  ${c.dim}${hits} req${c.reset}`)
       if (window && typeof window.primaryUsedPercent === 'number') {
-        const remaining = Math.max(0, Math.min(100, 100 - window.primaryUsedPercent))
-        parts.push(`5h ${Math.round(remaining)}% left · resets ${formatReset(window.primaryResetSeconds)}`)
+        const used = window.primaryUsedPercent
+        const left = Math.round(100 - used)
+        out.push(`    ${c.dim}5h   ${c.reset}${bar(used, 20, c)}  ${c.bold}${left}%${c.reset} ${c.dim}left · resets ${formatReset(window.primaryResetSeconds)}${c.reset}`)
       }
       if (window && typeof window.secondaryUsedPercent === 'number') {
-        const remaining = Math.max(0, Math.min(100, 100 - window.secondaryUsedPercent))
-        parts.push(`weekly ${Math.round(remaining)}% left · resets ${formatReset(window.secondaryResetSeconds)}`)
+        const used = window.secondaryUsedPercent
+        const left = Math.round(100 - used)
+        out.push(`    ${c.dim}week ${c.reset}${bar(used, 20, c)}  ${c.bold}${left}%${c.reset} ${c.dim}left · resets ${formatReset(window.secondaryResetSeconds)}${c.reset}`)
       }
-      lines.push(`  ${accountLabel(file, provider, usage.account_labels)} — ${parts.join(' · ')}`)
+      if (window?.planType) {
+        out.push(`    ${c.dim}plan ${window.planType}${window.creditBalance !== undefined ? ` · credit ${window.creditBalance}` : ''}${c.reset}`)
+      }
     }
   }
 
-  return lines.join('\n')
+  return out.join('\n')
+}
+
+async function fetchUsage(baseUrl: string): Promise<UsagePayload> {
+  const response = await fetch(`${baseUrl}/usage`)
+  return (await response.json()) as UsagePayload
+}
+
+export async function runUsageCommand(options: UsageCommandOptions) {
+  const color = options.color ?? (process.stdout.isTTY ?? false)
+  try {
+    const usage = await fetchUsage(options.baseUrl)
+    return renderUsage(usage, { color, timestamp: false })
+  } catch (error) {
+    if (isConnectionRefused(error)) return 'viberelay-daemon not running — start it with: viberelay start'
+    throw error
+  }
+}
+
+export interface UsageWatchOptions {
+  baseUrl: string
+  intervalMs?: number
+  signal?: AbortSignal
+}
+
+export async function runUsageWatch(options: UsageWatchOptions): Promise<void> {
+  const interval = options.intervalMs ?? 2000
+  const color = process.stdout.isTTY ?? false
+  const write = (s: string) => process.stdout.write(s)
+  const clear = () => write('\x1b[2J\x1b[H')
+  const hideCursor = () => write('\x1b[?25l')
+  const showCursor = () => write('\x1b[?25h')
+
+  const cleanup = () => {
+    showCursor()
+  }
+  process.on('SIGINT', () => {
+    cleanup()
+    process.exit(0)
+  })
+  process.on('SIGTERM', () => {
+    cleanup()
+    process.exit(0)
+  })
+
+  hideCursor()
+  try {
+    while (!options.signal?.aborted) {
+      let body: string
+      try {
+        const usage = await fetchUsage(options.baseUrl)
+        body = renderUsage(usage, { color, timestamp: true })
+      } catch (error) {
+        if (isConnectionRefused(error)) {
+          body = 'viberelay-daemon not running — start it with: viberelay start'
+        } else {
+          body = `error: ${(error as Error).message}`
+        }
+      }
+      clear()
+      write(body)
+      write(`\n\n\x1b[2m(refreshing every ${Math.round(interval / 1000)}s · Ctrl-C to exit)\x1b[0m\n`)
+      await new Promise((resolve) => setTimeout(resolve, interval))
+    }
+  } finally {
+    cleanup()
+  }
 }

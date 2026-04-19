@@ -9,7 +9,7 @@ import { runStartCommand } from './commands/start.js'
 import { runStatusCommand } from './commands/status.js'
 import { runStopCommand } from './commands/stop.js'
 import { runUpdateCommand } from './commands/update.js'
-import { runUsageCommand } from './commands/usage.js'
+import { runUsageCommand, runUsageWatch } from './commands/usage.js'
 import { VERSION } from './version.js'
 
 const baseUrl = process.env.VIBERELAY_BASE_URL ?? 'http://127.0.0.1:8327'
@@ -34,7 +34,8 @@ Service registration (auto-start on login):
 
 Proxy:
   accounts           Account summary per provider
-  usage              Request counts + 5h/weekly quota windows
+  usage [--once] [--watch] [--interval <ms>]
+                     Request counts + 5h/weekly quotas (live refresh in TTY)
   dashboard          Open the web UI
   profile ...        Manage local Claude profiles (run \`viberelay profile help\`)
 
@@ -79,9 +80,20 @@ async function main() {
     case 'accounts':
       process.stdout.write(await runAccountsCommand({ baseUrl }) + '\n')
       return
-    case 'usage':
+    case 'usage': {
+      const args = process.argv.slice(3)
+      const once = args.includes('--once')
+      const watchFlag = args.includes('--watch') || args.includes('-w')
+      const intervalIdx = args.indexOf('--interval')
+      const intervalMs = intervalIdx >= 0 ? Math.max(500, Number.parseInt(args[intervalIdx + 1] ?? '2000', 10)) : 2000
+      const shouldWatch = watchFlag || (!once && (process.stdout.isTTY ?? false))
+      if (shouldWatch) {
+        await runUsageWatch({ baseUrl, intervalMs })
+        return
+      }
       process.stdout.write(await runUsageCommand({ baseUrl }) + '\n')
       return
+    }
     case 'dashboard':
       process.stdout.write(await runDashboardCommand({ baseUrl }) + '\n')
       return

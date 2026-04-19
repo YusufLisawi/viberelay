@@ -42,10 +42,11 @@ describe('accounts and usage commands', () => {
     const baseUrl = `http://${started.host}:${started.port}`
 
     const accountsOutput = await runAccountsCommand({ baseUrl })
-    const usageOutput = await runUsageCommand({ baseUrl })
+    const usageOutput = await runUsageCommand({ baseUrl, color: false })
 
     expect(accountsOutput).toContain('claude')
     expect(accountsOutput).toContain('1/1 active')
-    expect(usageOutput).toContain('requests 0')
+    expect(usageOutput).toContain('total requests')
+    expect(usageOutput).toContain('0')
   })
 })

@@ -599,13 +599,6 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
           } else {
             group = body as unknown as ModelGroup
           }
-          const lockedGroupIds = new Set(DEFAULT_MODEL_GROUPS.map((entry) => entry.id))
-          const existingLocked = (settingsStore?.state.modelGroups ?? []).find((entry) => entry.id === group.id && lockedGroupIds.has(entry.id))
-          if (existingLocked && (group.name !== existingLocked.name || JSON.stringify(group.models) !== JSON.stringify(existingLocked.models))) {
-            response.writeHead(403, { 'content-type': 'application/json' })
-            response.end(JSON.stringify({ ok: false, error: `group ${existingLocked.name} is locked` }))
-            return
-          }
           await settingsStore?.upsertModelGroup(group)
           modelGroupRouter.updateGroups(settingsStore?.state.modelGroups ?? [])
           response.writeHead(200, { 'content-type': 'application/json' })
@@ -653,13 +646,6 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
 
         if ((request.method === 'DELETE' || request.method === 'POST') && url.pathname.startsWith('/relay/model-groups/')) {
           const id = url.pathname.split('/').pop() ?? ''
-          const lockedGroupIds = new Set(DEFAULT_MODEL_GROUPS.map((entry) => entry.id))
-          const existing = (settingsStore?.state.modelGroups ?? []).find((group) => group.id === id)
-          if (existing && lockedGroupIds.has(existing.id)) {
-            response.writeHead(403, { 'content-type': 'application/json' })
-            response.end(JSON.stringify({ ok: false, error: `group ${existing.name} is locked` }))
-            return
-          }
           await settingsStore?.deleteModelGroup(id)
           modelGroupRouter.updateGroups(settingsStore?.state.modelGroups ?? [])
           response.writeHead(200, { 'content-type': 'application/json' })

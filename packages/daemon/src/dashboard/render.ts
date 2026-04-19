@@ -294,11 +294,10 @@ function renderBody(
               ${modelGroupEntries.length === 0 ? `<p class="empty">No model groups. Click + Add Group.</p>` : `<div class="list">${modelGroupEntries.map((group) => {
                 const lastHit = status.model_groups.last_hit_by_group_id[group.id]
                 const inCatalog = groupsPresent(group.name)
-                const isLocked = ['4EEBCEE0-55B6-4A4F-B875-C95A3DDFD54E', '1CB78ECB-A1D4-4C37-B9CD-26A77DD428F6', '3633277B-8B99-4DC1-8FB4-656E1B752AB1'].includes(group.id)
                 return `<div class="group-item">
                   <div class="group-head">
                     <div>
-                      <div class="group-name">${escape(group.name)} ${isLocked ? '<span class="pill">locked</span>' : ''} ${inCatalog ? '<span class="pill ok" title="Visible in /v1/models">/v1</span>' : ''}</div>
+                      <div class="group-name">${escape(group.name)} ${inCatalog ? '<span class="pill ok" title="Visible in /v1/models">/v1</span>' : ''}</div>
                       <div class="group-id">${escape(group.id)} · ${lastHit ? `last: ${escape(lastHit)}` : 'unused yet'}</div>
                     </div>
                     <div class="actions">
@@ -309,14 +308,14 @@ function renderBody(
                         <input type="hidden" name="enabled" value="${group.enabled ? 'false' : 'true'}" />
                         <button type="submit" class="switch ${group.enabled ? 'on' : 'off'}" title="${group.enabled ? 'Disable group' : 'Enable group'}"><span class="switch-knob"></span><span class="sr-only">${group.enabled ? 'Disable group' : 'Enable group'}</span></button>
                       </form>
-                      ${isLocked ? '' : `<button type="button" class="icon-btn" data-edit-group='${escape(JSON.stringify(group))}' title="Edit group">
+                      <button type="button" class="icon-btn" data-edit-group='${escape(JSON.stringify(group))}' title="Edit group">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                       </button>
                       <form method="post" action="/relay/model-groups/${escape(group.id)}" data-async data-confirm="Delete group ${escape(group.name)}?" style="display:inline; opacity:1;">
                         <button type="submit" class="icon-btn trash" title="Remove group" aria-label="Remove group">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
                         </button>
-                      </form>`}
+                      </form>
                     </div>
                   </div>
                   <div class="group-models">${group.models.map((model) => `<span class="chip">${escape(model)}</span>`).join('')}</div>

@@ -404,6 +404,14 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
         const urlBasePort = started?.port ?? requestedPort ?? 0
         const url = new URL(request.url ?? '/', `http://${host}:${urlBasePort}`)
 
+        // Access log: visible in daemon.log via `viberelay logs` AND in the
+        // dashboard live-logs pane. Skips dashboard/usage endpoints to stay skimmable.
+        if (url.pathname.startsWith('/v1/')) {
+          const entry = `${new Date().toISOString()} ${request.method ?? 'GET'} ${url.pathname}\n`
+          process.stdout.write(entry)
+          logBuffer.ingest('stdout', entry)
+        }
+
         // CSRF defense: mutating relay endpoints must come from same-origin
         // (or no-origin) callers. The daemon binds to loopback, but any page
         // the user has open can cross-origin fetch localhost without this.
@@ -679,7 +687,14 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
           return
         }
 
-        if (request.method === 'POST' && ['/v1/messages', '/v1/responses', '/v1/chat/completions'].includes(url.pathname)) {
+        if (request.method === 'POST' && [
+          '/v1/messages',
+          '/v1/messages/count_tokens',
+          '/v1/responses',
+          '/v1/chat/completions',
+          '/v1/completions',
+          '/v1/embeddings'
+        ].includes(url.pathname)) {
           const body = await readRequestBody(request)
           try {
             JSON.parse(body)
@@ -777,6 +792,40 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
         if (request.method === 'POST' && url.pathname === '/relay/stop') {
           response.writeHead(200, { 'content-type': 'application/json' })
           response.end(JSON.stringify({ ok: true, state: 'stopped' }))
+          return
+        }
+
+        // Catch-all for any other /v1/* endpoint Claude Code / SDK clients may
+        // hit. Forward to the upstream Go child so we stay transparent, and
+        // record the hit so the usage counter reflects real traffic.
+        if (url.pathname.startsWith('/v1/')) {
+          const body = request.method === 'GET' || request.method === 'HEAD' ? '' : await readRequestBody(request)
+          recordUsage(usageStats, request.method ?? 'GET', url.pathname)
+          const forwarded = await normalizeAndForward({
+            upstreamFetch,
+            targetHost: host,
+            targetPort,
+            path: url.pathname,
+            method: request.method ?? 'GET',
+            headers: { 'content-type': request.headers['content-type'] ?? 'application/json' },
+            body,
+            stream: true
+          })
+          response.writeHead(forwarded.status, { 'content-type': forwarded.headers.get('content-type') ?? 'application/json' })
+          if (forwarded.bodyStream) {
+            const reader = forwarded.bodyStream.getReader()
+            try {
+              while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                if (value) response.write(Buffer.from(value))
+              }
+            } finally {
+              response.end()
+            }
+          } else {
+            response.end(forwarded.text)
+          }
           return
         }
 

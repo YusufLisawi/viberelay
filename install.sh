@@ -46,15 +46,33 @@ resolve_url() {
   fi
 }
 
+tmp=""
+cleanup() { [ -n "$tmp" ] && rm -rf "$tmp"; }
+trap cleanup EXIT
+
 main() {
-  local target url tmp
+  local target url
   target="$(detect_target)"
   url="$(resolve_url "$target")"
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' EXIT
 
   info "downloading $url"
-  curl -fL --progress-bar "$url" -o "$tmp/viberelay.tar.gz" \
+  local curl_auth=()
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    curl_auth=(-H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/octet-stream")
+    # Private-repo downloads go through the API asset URL, not the browser redirect.
+    if [ "$VERSION" = "latest" ]; then
+      api_release_url="https://api.github.com/repos/${REPO}/releases/latest"
+    else
+      api_release_url="https://api.github.com/repos/${REPO}/releases/tags/${VERSION}"
+    fi
+    asset_id="$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" "$api_release_url" \
+      | python3 -c "import sys,json;[print(a['id']) for a in json.load(sys.stdin)['assets'] if a['name']=='viberelay-${target}.tar.gz']" || true)"
+    if [ -n "$asset_id" ]; then
+      url="https://api.github.com/repos/${REPO}/releases/assets/${asset_id}"
+    fi
+  fi
+  curl -fL "${curl_auth[@]}" --progress-bar "$url" -o "$tmp/viberelay.tar.gz" \
     || fail "download failed"
 
   info "extracting to $PREFIX"
@@ -67,7 +85,7 @@ main() {
 
   # macOS: Bun-compiled binaries carry an ad-hoc signature that tar invalidates.
   # Kernel sends SIGKILL on launch unless we re-sign after extraction.
-  if [ "$os" = "darwin" ] && command -v codesign >/dev/null 2>&1; then
+  if [[ "$target" == *darwin* ]] && command -v codesign >/dev/null 2>&1; then
     for exe in "$PREFIX/bin/viberelay" "$PREFIX/bin/viberelay-daemon"; do
       codesign --remove-signature "$exe" 2>/dev/null || true
       codesign --force --sign - "$exe" >/dev/null 2>&1 || info "warning: codesign $exe failed"

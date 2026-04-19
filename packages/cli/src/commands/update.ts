@@ -85,15 +85,22 @@ function detectTarget(): { id: string, ext: 'tar.gz' | 'zip', windows: boolean }
 
 async function fetchRelease(repo: string, channel: 'stable' | 'nightly', doFetch: typeof fetch): Promise<GitHubRelease> {
   const path = channel === 'nightly' ? 'releases/tags/viberelay-nightly' : 'releases/latest'
-  const response = await doFetch(`https://api.github.com/repos/${repo}/${path}`, {
-    headers: { accept: 'application/vnd.github+json' }
-  })
-  if (!response.ok) throw new Error(`GitHub API error ${response.status} for ${repo}/${path}`)
+  const headers: Record<string, string> = { accept: 'application/vnd.github+json' }
+  const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? process.env.VIBERELAY_TOKEN
+  if (token) headers.authorization = `Bearer ${token}`
+  const response = await doFetch(`https://api.github.com/repos/${repo}/${path}`, { headers })
+  if (!response.ok) throw new Error(`GitHub API error ${response.status} for ${repo}/${path}. Private repo? Set VIBERELAY_TOKEN or GITHUB_TOKEN.`)
   return await response.json() as GitHubRelease
 }
 
 async function downloadTo(url: string, destination: string, doFetch: typeof fetch): Promise<void> {
-  const response = await doFetch(url)
+  const headers: Record<string, string> = {}
+  const token = process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? process.env.VIBERELAY_TOKEN
+  if (token && url.includes('api.github.com')) {
+    headers.authorization = `Bearer ${token}`
+    headers.accept = 'application/octet-stream'
+  }
+  const response = await doFetch(url, { headers })
   if (!response.ok) throw new Error(`download failed: ${response.status} ${response.statusText}`)
   await mkdir(dirname(destination), { recursive: true })
   await writeFile(destination, Buffer.from(await response.arrayBuffer()))

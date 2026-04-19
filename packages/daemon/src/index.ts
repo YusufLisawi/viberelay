@@ -273,7 +273,7 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
   let settingsStore: SettingsStore | null = null
   let modelGroupRouter = new ModelGroupRouter()
   const logBuffer = new LogBuffer(1000)
-  const defaultIconsDir = resolve(currentDirectory, '../resources/icons')
+  const defaultIconsDir = resolve(installRoot, 'resources/icons')
   const iconsDir = options.iconsDir ?? defaultIconsDir
 
   return {

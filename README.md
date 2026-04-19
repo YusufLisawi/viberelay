@@ -8,17 +8,78 @@ Multi-provider Claude API proxy. Point `claude` at it, share one pool of Claude 
 - **CLI** — one binary, zero Node runtime required on the target machine; self-updates from GitHub releases.
 - **Web dashboard** — provider toggles, account switches, 5h / weekly quota countdowns, group editor, live logs.
 
-## Quick start
+## Installation
 
-Install the CLI:
+One command per platform. All binaries are self-contained — no Node or Python runtime required.
+
+### macOS
 
 ```bash
-# macOS / Linux
 curl -fsSL https://github.com/YusufLisawi/viberelay/releases/latest/download/install.sh | bash
+```
 
-# Windows (PowerShell)
+Installs to `~/.viberelay` and symlinks `viberelay` / `viberelay-daemon` into `~/.local/bin`. Binaries are re-codesigned after extraction so Gatekeeper accepts them.
+
+### Linux
+
+```bash
+curl -fsSL https://github.com/YusufLisawi/viberelay/releases/latest/download/install.sh | bash
+```
+
+Same flow as macOS. x86_64 and arm64 both supported. On headless boxes set `VIBERELAY_AUTO_SERVICE=1` before piping to skip the interactive prompt and enable the `systemd --user` unit.
+
+### Windows (PowerShell)
+
+```powershell
 irm https://github.com/YusufLisawi/viberelay/releases/latest/download/install.ps1 | iex
 ```
+
+### After install
+
+1. Make sure `~/.local/bin` is on `$PATH` (the installer prints a reminder if it isn't). Add this to your shell rc:
+   ```bash
+   export PATH="$HOME/.local/bin:$PATH"
+   ```
+2. The installer asks **"Start viberelay automatically at login? [Y/n]"** — say yes and it registers a launchd agent (macOS) or systemd `--user` unit (Linux). Pre-set `VIBERELAY_AUTO_SERVICE=1` to skip the prompt, or `VIBERELAY_NO_SERVICE=1` to opt out.
+3. Verify:
+   ```bash
+   viberelay --version
+   viberelay status            # prints daemon health + account summary
+   ```
+4. Sign in to at least one provider via the web UI:
+   ```bash
+   viberelay dashboard         # opens http://127.0.0.1:8327/dashboard
+   ```
+5. Create a profile and run Claude Code through the proxy:
+   ```bash
+   viberelay p c               # interactive wizard: name + opus/sonnet/haiku groups
+   viberelay run -d vibe       # launch `claude` with profile env (-d = --dangerously-skip-permissions)
+   ```
+6. (macOS, optional) Menu-bar widget showing live pool usage:
+   ```bash
+   viberelay menubar install   # auto-installs SwiftBar via brew, drops plugin in, launches it
+   ```
+
+### Environment overrides (installer)
+
+| Variable | Effect |
+|---|---|
+| `VIBERELAY_PREFIX` | Install prefix (default `~/.viberelay`) |
+| `VIBERELAY_BIN_DIR` | Where `viberelay` / `viberelay-daemon` are symlinked (default `~/.local/bin`) |
+| `VIBERELAY_VERSION` | Pin a specific release tag (default `latest`) |
+| `VIBERELAY_AUTO_SERVICE` | `1` = enable autostart silently |
+| `VIBERELAY_NO_SERVICE` | `1` = skip autostart entirely |
+| `GITHUB_TOKEN` | Auth for private-repo downloads / rate-limit relief |
+
+### Uninstall
+
+```bash
+viberelay autostart disable           # remove service
+viberelay stop
+rm -rf ~/.viberelay ~/.local/bin/viberelay ~/.local/bin/viberelay-daemon
+```
+
+## Quick start
 
 The installer asks once whether to enable daemon auto-start at login (launchd
 on macOS, `systemd --user` on Linux). Say yes and viberelay is up from the next

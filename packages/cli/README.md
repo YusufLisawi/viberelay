@@ -40,15 +40,52 @@ bunx tsx packages/cli/src/bin.ts <command>
 bunx tsx packages/daemon/src/runner.ts
 ```
 
-### Run the daemon
+### After install — first run
 
-After install:
+The installer will prompt:
+
+```
+? Start viberelay automatically at login? [Y/n]
+```
+
+- **Y** (default): registers a launchd agent (macOS) or `systemd --user` unit (Linux). The daemon comes up on every login; you never need to run `start` manually.
+- **n**: skip. Re-enable anytime with `viberelay autostart enable`.
+
+Skip the prompt non-interactively:
 
 ```bash
-viberelay-daemon          # foreground; listens on 127.0.0.1:8327
+VIBERELAY_AUTO_SERVICE=1 curl -fsSL .../install.sh | bash   # enable without asking
+VIBERELAY_NO_SERVICE=1   curl -fsSL .../install.sh | bash   # disable without asking
+```
+
+Verify everything came up:
+
+```bash
+viberelay --version
+viberelay status          # daemon health + account summary (no throw if daemon is down)
+```
+
+### Run the daemon manually
+
+If you skipped autostart:
+
+```bash
+viberelay start           # background; idempotent; writes ~/.viberelay/state/daemon.pid
+viberelay stop
+viberelay restart
 ```
 
 Child `cli-proxy-api-plus` runs on `127.0.0.1:8328` — managed automatically.
+
+### First-run journey
+
+```bash
+viberelay dashboard       # sign in to Claude / Codex / etc. in the browser
+viberelay accounts        # verify at least one account is active
+viberelay p c             # interactive profile wizard
+viberelay run -d vibe     # launches claude with that profile's env
+viberelay menubar install # macOS only: live pool-usage widget in the menu bar
+```
 
 ## Command map
 

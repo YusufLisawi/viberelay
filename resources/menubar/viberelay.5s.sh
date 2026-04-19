@@ -111,7 +111,7 @@ else:
 if last_group or last_model:
     lg = last_group or "—"
     lm = last_model or "—"
-    line(f"Last: {lg} → {lm}", color="#88c", size=11, font="Menlo")
+    line(f"Last: {lg} → {lm}", size=11, font="Menlo")
 print("---")
 
 def fmt_reset_seconds(seconds):

@@ -64,24 +64,45 @@ pu = data.get("provider_usage", {}) or {}
 labels = data.get("account_labels", {}) or {}
 accs = data.get("account_counts", {}) or {}
 
-# Find lowest remaining % across all windows — surfaces pressure in the title.
-low = None
+# Pool pressure: average used% across every account × both windows.
+used_samples = []
+worst_remaining = None
+worst_label = None
 for prov, accts in pu.items():
-    for win in (accts or {}).values():
+    for file, win in (accts or {}).items():
         for key in ("primaryUsedPercent", "secondaryUsedPercent"):
             used = win.get(key)
             if isinstance(used, (int, float)):
-                remaining = max(0, 100 - used)
-                if low is None or remaining < low:
-                    low = remaining
+                clamped = max(0, min(100, used))
+                used_samples.append(clamped)
+                remaining = 100 - clamped
+                if worst_remaining is None or remaining < worst_remaining:
+                    worst_remaining = remaining
+                    worst_label = (labels.get(prov, {}) or {}).get(file, file.replace(".json", ""))
 
-if low is not None:
-    print(f"{int(round(low))}%{icon}")
+if used_samples:
+    pool_used = sum(used_samples) / len(used_samples)
+    print(f"{int(round(pool_used))}%{icon}")
 else:
     print(f"{total}{icon}")
 
 print("---")
 line(f"Server: running (port 8327)", color="#9c9")
+if used_samples:
+    line(
+        f"Pool: {int(round(sum(used_samples)/len(used_samples)))}% used "
+        f"across {len(used_samples)} windows · {total} req",
+        color="#aaa",
+        size=11,
+    )
+    if worst_remaining is not None and worst_label:
+        line(
+            f"Tightest: {int(round(worst_remaining))}% left ({worst_label})",
+            color="#aaa",
+            size=11,
+        )
+else:
+    line(f"{total} req", color="#aaa", size=11)
 print("---")
 
 def fmt_reset_seconds(seconds):

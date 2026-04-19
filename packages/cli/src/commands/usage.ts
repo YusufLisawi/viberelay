@@ -150,13 +150,21 @@ async function fetchUsage(baseUrl: string, signal?: AbortSignal): Promise<UsageP
   }
 }
 
-export async function runUsageCommand(options: UsageCommandOptions) {
+export interface UsageRunOptions extends UsageCommandOptions {
+  json?: boolean
+}
+
+export async function runUsageCommand(options: UsageRunOptions) {
   const color = options.color ?? (process.stdout.isTTY ?? false)
   try {
     const usage = await fetchUsage(options.baseUrl)
+    if (options.json) return JSON.stringify(usage)
     return renderUsage(usage, { color, timestamp: false })
   } catch (error) {
-    if (isConnectionRefused(error)) return 'viberelay-daemon not running — start it with: viberelay start'
+    if (isConnectionRefused(error)) {
+      if (options.json) return JSON.stringify({ error: 'daemon_not_running' })
+      return 'viberelay-daemon not running — start it with: viberelay start'
+    }
     throw error
   }
 }

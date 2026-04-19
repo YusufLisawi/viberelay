@@ -3,6 +3,7 @@ import process from 'node:process'
 import { runAccountsCommand } from './commands/accounts.js'
 import { runDashboardCommand } from './commands/dashboard.js'
 import { runLogsCommand } from './commands/logs.js'
+import { runMenubarCommand } from './commands/menubar.js'
 import { runProfileCommand } from './commands/profile.js'
 import { runServiceCommand } from './commands/service.js'
 import { runStartCommand } from './commands/start.js'
@@ -37,6 +38,7 @@ Proxy:
   usage [--once] [--watch] [--interval <ms>]
                      Request counts + 5h/weekly quotas (live refresh in TTY)
   dashboard          Open the web UI
+  menubar ...        Install/remove the macOS SwiftBar menu-bar plugin (run \`viberelay menubar help\`)
   profile ...        Manage local Claude profiles (run \`viberelay profile help\`)
 
 Self-maintenance:
@@ -83,19 +85,23 @@ async function main() {
     case 'usage': {
       const args = process.argv.slice(3)
       const once = args.includes('--once')
+      const json = args.includes('--json')
       const watchFlag = args.includes('--watch') || args.includes('-w')
       const intervalIdx = args.indexOf('--interval')
       const intervalMs = intervalIdx >= 0 ? Math.max(500, Number.parseInt(args[intervalIdx + 1] ?? '2000', 10)) : 2000
-      const shouldWatch = watchFlag || (!once && (process.stdout.isTTY ?? false))
+      const shouldWatch = !json && (watchFlag || (!once && (process.stdout.isTTY ?? false)))
       if (shouldWatch) {
         await runUsageWatch({ baseUrl, intervalMs })
         return
       }
-      process.stdout.write(await runUsageCommand({ baseUrl }) + '\n')
+      process.stdout.write(await runUsageCommand({ baseUrl, json }) + '\n')
       return
     }
     case 'dashboard':
       process.stdout.write(await runDashboardCommand({ baseUrl }) + '\n')
+      return
+    case 'menubar':
+      process.stdout.write(await runMenubarCommand({}) + '\n')
       return
     case 'profile':
       process.stdout.write(await runProfileCommand({ baseUrl }) + '\n')

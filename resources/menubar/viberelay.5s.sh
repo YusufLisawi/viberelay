@@ -72,9 +72,10 @@ last_at = data.get("last_at")
 used_samples = []
 worst_remaining = None
 worst_label = None
+worst_window = None
 for prov, accts in pu.items():
     for file, win in (accts or {}).items():
-        for key in ("primaryUsedPercent", "secondaryUsedPercent"):
+        for key, window_name in (("primaryUsedPercent", "5h"), ("secondaryUsedPercent", "weekly")):
             used = win.get(key)
             if isinstance(used, (int, float)):
                 clamped = max(0, min(100, used))
@@ -83,6 +84,7 @@ for prov, accts in pu.items():
                 if worst_remaining is None or remaining < worst_remaining:
                     worst_remaining = remaining
                     worst_label = (labels.get(prov, {}) or {}).get(file, file.replace(".json", ""))
+                    worst_window = window_name
 
 if used_samples:
     pool_used = sum(used_samples) / len(used_samples)
@@ -100,8 +102,9 @@ if used_samples:
         size=11,
     )
     if worst_remaining is not None and worst_label:
+        window_tag = f" {worst_window}" if worst_window else ""
         line(
-            f"Tightest: {int(round(worst_remaining))}% left ({worst_label})",
+            f"Tightest:{window_tag} {int(round(worst_remaining))}% left ({worst_label})",
             color="#aaa",
             size=11,
         )
@@ -148,10 +151,13 @@ for prov in provider_order:
         win = windows.get(file, {}) or {}
         req_count = hits.get(file, 0)
         pp = win.get("primaryUsedPercent")
+        sp = win.get("secondaryUsedPercent")
         reset = fmt_reset_seconds(win.get("primaryResetSeconds"))
         bits = []
         if isinstance(pp, (int, float)):
-            bits.append(f"{int(round(100 - pp))}%")
+            bits.append(f"5h {int(round(100 - pp))}%")
+        if isinstance(sp, (int, float)):
+            bits.append(f"wk {int(round(100 - sp))}%")
         if reset:
             bits.append(reset)
         if req_count:

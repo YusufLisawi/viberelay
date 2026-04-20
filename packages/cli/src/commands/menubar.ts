@@ -76,20 +76,23 @@ function parseTarget(argv: string[]): string | undefined {
 }
 
 export async function runMenubarCommand(options: MenubarCommandOptions): Promise<string> {
-  if (platform() !== 'darwin') {
-    return 'viberelay menubar is macOS-only (requires SwiftBar or xbar).'
-  }
   const argv = options.argv ?? process.argv.slice(3)
   const sub = argv[0]
   switch (sub) {
-    case 'install': return installPlugin(parseTarget(argv))
-    case 'uninstall': return uninstallPlugin(parseTarget(argv))
-    case 'status': return statusPlugin(parseTarget(argv))
-    case 'path': return resolvePluginSource()
     case undefined:
     case 'help':
     case '--help':
       return usage()
+    case 'path':
+      return resolvePluginSource()
+  }
+  if (platform() !== 'darwin') {
+    return 'viberelay menubar is macOS-only (requires SwiftBar or xbar).'
+  }
+  switch (sub) {
+    case 'install': return installPlugin(parseTarget(argv))
+    case 'uninstall': return uninstallPlugin(parseTarget(argv))
+    case 'status': return statusPlugin(parseTarget(argv))
     default:
       throw new Error(`Unknown menubar subcommand: ${sub}\n${usage()}`)
   }

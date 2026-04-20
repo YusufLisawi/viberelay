@@ -60,8 +60,8 @@ function incrementBoundedCounter(bucket: Record<string, number>, key: string, ma
   }
 }
 
-export function recordUsage(stats: UsageStats, method: string, path: string, model?: string) {
-  ensureCurrentDay(stats)
+export function recordUsage(stats: UsageStats, method: string, path: string, model?: string, clock: () => Date = () => new Date()) {
+  ensureCurrentDay(stats, clock)
   stats.totalRequests += 1
   incrementBoundedCounter(stats.endpointCounts, `${method} ${path}`, MAX_ENDPOINT_KEYS)
   if (model) {
@@ -69,8 +69,8 @@ export function recordUsage(stats: UsageStats, method: string, path: string, mod
   }
 }
 
-export function recordAccountHit(stats: UsageStats, providerType: string, accountFile: string) {
-  ensureCurrentDay(stats)
+export function recordAccountHit(stats: UsageStats, providerType: string, accountFile: string, clock: () => Date = () => new Date()) {
+  ensureCurrentDay(stats, clock)
   incrementBoundedCounter(stats.providerCounts, providerType, MAX_PROVIDER_KEYS)
   const bucket = stats.accountCounts[providerType] ?? (stats.accountCounts[providerType] = {})
   incrementBoundedCounter(bucket, accountFile, MAX_ACCOUNT_KEYS_PER_PROVIDER)

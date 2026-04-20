@@ -196,4 +196,4 @@ bun run package -- --target bun-darwin-arm64
 
 ## License
 
-Private, all rights reserved for now.
+MIT. See [`LICENSE`](./LICENSE).

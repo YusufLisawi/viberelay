@@ -51,13 +51,13 @@ describe('usage daily reset', () => {
 
   it('recordUsage auto-rolls when a new day starts mid-traffic', () => {
     const stats = emptyStats()
-    const day1 = new Date('2026-04-19T23:59:30Z')
+    const day1 = new Date(2026, 3, 19, 23, 59, 30)
     ensureCurrentDay(stats, () => day1)
     recordUsage(stats, 'POST', '/v1/messages', undefined, () => day1)
     recordUsage(stats, 'POST', '/v1/messages', undefined, () => day1)
     expect(stats.totalRequests).toBe(2)
 
-    const day2 = new Date('2026-04-20T00:00:30Z')
+    const day2 = new Date(2026, 3, 20, 0, 0, 30)
     recordUsage(stats, 'POST', '/v1/messages', undefined, () => day2)
     expect(stats.totalRequests).toBe(1)
   })

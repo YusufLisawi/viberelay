@@ -5,11 +5,11 @@
 # Environment overrides (set before invoking):
 #   $env:VIBERELAY_VERSION  pin a release tag (default: latest)
 #   $env:VIBERELAY_PREFIX   install prefix (default: $HOME\.viberelay)
-#   $env:VIBERELAY_REPO     GitHub repo slug (default: vibeproxy/viberelay)
+#   $env:VIBERELAY_REPO     GitHub repo slug (default: YusufLisawi/viberelay)
 
 $ErrorActionPreference = "Stop"
 
-$Repo    = if ($env:VIBERELAY_REPO)    { $env:VIBERELAY_REPO }    else { "vibeproxy/viberelay" }
+$Repo    = if ($env:VIBERELAY_REPO)    { $env:VIBERELAY_REPO }    else { "YusufLisawi/viberelay" }
 $Version = if ($env:VIBERELAY_VERSION) { $env:VIBERELAY_VERSION } else { "latest" }
 $Prefix  = if ($env:VIBERELAY_PREFIX)  { $env:VIBERELAY_PREFIX }  else { Join-Path $HOME ".viberelay" }
 

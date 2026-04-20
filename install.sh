@@ -7,11 +7,11 @@
 #   VIBERELAY_VERSION   pin a specific release tag (default: latest)
 #   VIBERELAY_PREFIX    install prefix (default: $HOME/.viberelay)
 #   VIBERELAY_BIN_DIR   where to symlink binaries (default: $HOME/.local/bin)
-#   VIBERELAY_REPO      GitHub repo slug (default: vibeproxy/viberelay)
+#   VIBERELAY_REPO      GitHub repo slug (default: YusufLisawi/viberelay)
 
 set -euo pipefail
 
-REPO="${VIBERELAY_REPO:-vibeproxy/viberelay}"
+REPO="${VIBERELAY_REPO:-YusufLisawi/viberelay}"
 VERSION="${VIBERELAY_VERSION:-latest}"
 PREFIX="${VIBERELAY_PREFIX:-$HOME/.viberelay}"
 BIN_DIR="${VIBERELAY_BIN_DIR:-$HOME/.local/bin}"
@@ -76,7 +76,7 @@ main() {
       url="https://api.github.com/repos/${REPO}/releases/assets/${asset_id}"
     fi
   fi
-  curl -fL "${curl_auth[@]}" --progress-bar "$url" -o "$tmp/viberelay.tar.gz" \
+  curl -fL ${curl_auth[@]+"${curl_auth[@]}"} --progress-bar "$url" -o "$tmp/viberelay.tar.gz" \
     || fail "download failed"
 
   info "extracting to $PREFIX"

@@ -1,6 +1,7 @@
 export interface DashboardAccountEntry {
   display_name: string
   expired: boolean
+  enabled: boolean
   file: string
   expires_at?: string
 }
@@ -226,8 +227,8 @@ function renderBody(
                 <div class="accounts-grid">
                   ${summary.accounts.map((account, index) => {
                     const accUsage = providerUsage[provider]?.[account.file] ?? providerUsage[provider]?.[account.display_name]
-                    const isEnabled = !account.expired
-                    const nextIndex = summary.accounts.findIndex((acc) => !acc.expired)
+                    const isEnabled = account.enabled
+                    const nextIndex = summary.accounts.findIndex((acc) => !acc.expired && acc.enabled)
                     const isNext = index === nextIndex && isEnabled
                     const accountHits = usage.account_counts?.[provider]?.[account.file] ?? 0
                     const used = accUsage?.primaryUsedPercent
@@ -245,7 +246,7 @@ function renderBody(
                           <span class="pill" title="Requests routed via this account">${accountHits} req</span>
                           <form method="post" action="/relay/accounts/toggle" data-async class="switch-form">
                             <input type="hidden" name="accountFile" value="${escape(account.file)}" />
-                            <input type="hidden" name="enabled" value="${account.expired ? 'true' : 'false'}" />
+                            <input type="hidden" name="enabled" value="${account.enabled ? 'false' : 'true'}" />
                             <button type="submit" class="switch ${isEnabled ? 'on' : 'off'}" title="${isEnabled ? 'Disable account' : 'Enable account'}" aria-label="${isEnabled ? 'Disable account' : 'Enable account'}">
                               <span class="switch-knob"></span>
                               <span class="sr-only">${isEnabled ? 'Disable account' : 'Enable account'}</span>
@@ -379,20 +380,32 @@ function renderBody(
         </div>
 
         <div class="grid-3" style="margin-top:14px;">
-          ${Object.keys(usage.account_counts ?? {}).length === 0 ? `<div class="card" style="grid-column: 1 / -1;"><div class="card-head"><h2>Requests per Account</h2></div><div class="card-body"><p class="empty">No account-scoped requests yet. Route a /v1/chat/completions or /v1/messages call to populate.</p></div></div>` : Object.entries(usage.account_counts ?? {}).map(([provider, accounts]) => {
-            const entries = Object.entries(accounts).sort((l, r) => r[1] - l[1])
-            const max = Math.max(...entries.map((entry) => entry[1]), 1)
-            const total = entries.reduce((sum, entry) => sum + entry[1], 0)
-            return `<div class="card">
-              <div class="card-head">
-                <h2>${providerIcon(provider)} ${escape(provider)}</h2>
-                <span class="sub">${total} req</span>
-              </div>
-              <div class="card-body">
-                <div class="list">${entries.map(([file, count]) => { const label = usage.account_labels?.[provider]?.[file] ?? file; return `<div class="bar-row"><div class="bar-label"><span title="${escape(file)}">${escape(label)}</span><span class="bar-value">${count}</span></div><div class="bar"><div class="bar-fill ok" style="width:${(count / max) * 100}%"></div></div></div>` }).join('')}</div>
-              </div>
-            </div>`
-          }).join('')}
+          ${(() => {
+            const accountLabels = usage.account_labels ?? {}
+            const accountCounts = usage.account_counts ?? {}
+            const providers = Array.from(new Set([...Object.keys(accountLabels), ...Object.keys(accountCounts)])).sort()
+            if (providers.length === 0) {
+              return `<div class="card" style="grid-column: 1 / -1;"><div class="card-head"><h2>Requests per Account</h2></div><div class="card-body"><p class="empty">No account-scoped requests yet. Route a /v1/chat/completions or /v1/messages call to populate.</p></div></div>`
+            }
+            return providers.map((provider) => {
+              const providerLabels = accountLabels[provider] ?? {}
+              const providerCounts = accountCounts[provider] ?? {}
+              const entries = Array.from(new Set([...Object.keys(providerLabels), ...Object.keys(providerCounts)]))
+                .map((file) => [file, providerCounts[file] ?? 0] as const)
+                .sort((l, r) => r[1] - l[1] || l[0].localeCompare(r[0]))
+              const max = Math.max(...entries.map((entry) => entry[1]), 1)
+              const total = entries.reduce((sum, entry) => sum + entry[1], 0)
+              return `<div class="card">
+                <div class="card-head">
+                  <h2>${providerIcon(provider)} ${escape(provider)}</h2>
+                  <span class="sub">${total} req</span>
+                </div>
+                <div class="card-body">
+                  <div class="list">${entries.map(([file, count]) => { const label = providerLabels[file] ?? file; return `<div class="bar-row"><div class="bar-label"><span title="${escape(file)}">${escape(label)}</span><span class="bar-value">${count}</span></div><div class="bar"><div class="bar-fill ok" style="width:${(count / max) * 100}%"></div></div></div>` }).join('')}</div>
+                </div>
+              </div>`
+            }).join('')
+          })()}
         </div>
 
         <div style="margin-top:14px;">

@@ -115,7 +115,8 @@ function buildAccountsSummary(accounts: LocalAuthAccount[], settingsState?: Sett
         accounts: safeAccounts.map((account) => {
           const entry = {
             display_name: displayNameForAccount(account),
-            expired: isExpiredAccount(account) || settingsState?.accountEnabled[account.fileName] === false,
+            expired: isExpiredAccount(account),
+            enabled: settingsState?.accountEnabled[account.fileName] !== false,
             file: account.fileName,
             ...(account.expired ? { expires_at: iso8601(account.expired) } : {})
           }
@@ -127,12 +128,13 @@ function buildAccountsSummary(accounts: LocalAuthAccount[], settingsState?: Sett
     })
   )
 
-  const activeTotal = accounts.filter((account) => !isExpiredAccount(account)).length
+  const activeTotal = visibleAccounts.filter((account) => !isExpiredAccount(account) && settingsState?.accountEnabled[account.fileName] !== false).length
+  const expiredTotal = visibleAccounts.filter((account) => isExpiredAccount(account) || settingsState?.accountEnabled[account.fileName] === false).length
 
   return {
-    total: accounts.length,
+    total: visibleAccounts.length,
     active: activeTotal,
-    expired: accounts.length - activeTotal,
+    expired: expiredTotal,
     providers
   }
 }
@@ -292,6 +294,17 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
   const upstreamFetch = options.upstreamFetch ?? fetch
   let providerUsageByAccount = options.providerUsageByAccount ?? {}
   let providerUsageFetchedAt = options.providerUsageByAccount ? Date.now() : 0
+  const runUsagePoll = async (force = false) => {
+    if (options.providerUsageByAccount !== undefined) return
+    if (!force && isFresh(providerUsageFetchedAt, 15 * 60 * 1000)) return
+    try {
+      const next = await pollProviderUsage(authDir, upstreamFetch)
+      providerUsageByAccount = next
+      providerUsageFetchedAt = Date.now()
+    } catch {
+      // ignore
+    }
+  }
   const usageStats: UsageStats = {
     totalRequests: 0,
     endpointCounts: {},
@@ -362,16 +375,6 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
       nextChild.stderr.resume()
 
       if (options.providerUsageByAccount === undefined) {
-        const runUsagePoll = async (force = false) => {
-          if (!force && isFresh(providerUsageFetchedAt, 15 * 60 * 1000)) return
-          try {
-            const next = await pollProviderUsage(authDir, upstreamFetch)
-            providerUsageByAccount = next
-            providerUsageFetchedAt = Date.now()
-          } catch {
-            // ignore
-          }
-        }
         setTimeout(() => void runUsagePoll(true), 2000)
         setInterval(() => void runUsagePoll(), 15 * 60 * 1000).unref()
       }
@@ -537,6 +540,7 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
           const provider = String(body.provider ?? '').trim() as 'claude' | 'codex' | 'github-copilot' | 'opencode' | 'nvidia' | 'ollama' | 'openrouter'
           if (provider === 'claude' || provider === 'codex' || provider === 'github-copilot') {
             const result = await launchOAuthLogin(provider)
+            if (result.ok) await runUsagePoll(true)
             response.writeHead(result.ok ? 200 : 500, { 'content-type': 'application/json' })
             response.end(JSON.stringify(result))
             return
@@ -549,6 +553,7 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
               return
             }
             const saved = await saveApiKeyAccount(authDir, provider, apiKey)
+            await runUsagePoll(true)
             response.writeHead(200, { 'content-type': 'application/json' })
             response.end(JSON.stringify({ ok: true, message: `Saved ${saved.fileName}` }))
             return

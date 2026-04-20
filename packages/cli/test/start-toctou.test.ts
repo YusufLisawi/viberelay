@@ -67,7 +67,7 @@ describe('start TOCTOU lock', () => {
   it('concurrent runStartCommand calls only attempt to spawn once when binary is present', async () => {
     // Use /bin/sleep (always present on unix) as a stand-in daemon so spawnDaemon
     // succeeds but the "daemon" never actually starts listening.
-    const sleepBin = process.platform === 'win32' ? 'ping' : '/bin/sleep'
+    const sleepBin = process.platform === 'win32' ? process.execPath : '/bin/sleep'
     process.env.VIBERELAY_DAEMON_BINARY = sleepBin
 
     // Import daemon-control to spy on spawnDaemon at the module level.
@@ -101,7 +101,7 @@ describe('start TOCTOU lock', () => {
 
   it('lock file is removed after a successful start', async () => {
     // Use /bin/sleep so spawnDaemon succeeds.
-    const sleepBin = process.platform === 'win32' ? 'ping' : '/bin/sleep'
+    const sleepBin = process.platform === 'win32' ? process.execPath : '/bin/sleep'
     process.env.VIBERELAY_DAEMON_BINARY = sleepBin
 
     await runStartCommand({ baseUrl: 'http://127.0.0.1:59997', wait: false })

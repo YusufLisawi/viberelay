@@ -280,7 +280,7 @@ async function buildStatusPayload(started: StartedDaemon, authDir: string, model
     model_groups: {
       last_hit_by_group_id: modelGroupRouter.lastResolvedModelsByGroupId()
     },
-    accounts: buildAccountsSummary(accounts)
+    accounts: buildAccountsSummary(accounts, settingsState)
   }
 }
 

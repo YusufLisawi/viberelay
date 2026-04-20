@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createDaemonController } from '../src/index.js'
@@ -98,5 +98,42 @@ describe('settings portal mutations', () => {
       models: ['anthropic/claude-sonnet-4-5', 'openai/gpt-5.4'],
       enabled: false
     })
+  })
+
+  it('reflects account toggles in relay state and dashboard-derived status', async () => {
+    const stateDir = await mkdtemp(join(tmpdir(), 'viberelay-state-account-toggle-'))
+    const authDir = await mkdtemp(join(tmpdir(), 'viberelay-auth-account-toggle-'))
+    tempDirs.push(stateDir, authDir)
+    await writeFile(join(authDir, 'claude-a.json'), JSON.stringify({ type: 'claude', email: 'a@example.com' }))
+    await writeFile(join(authDir, 'claude-b.json'), JSON.stringify({ type: 'claude', email: 'b@example.com' }))
+
+    const controller = createDaemonController({ port: 0, stateDir, authDir })
+    controllers.push(controller)
+    const started = await controller.start()
+    const base = `http://${started.host}:${started.port}`
+
+    await fetch(`${base}/relay/accounts/toggle`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ accountFile: 'claude-a.json', enabled: 'false' }).toString()
+    })
+
+    const stateResponse = await fetch(`${base}/relay/state`)
+    const state = await stateResponse.json() as {
+      status: {
+        accounts: {
+          providers: Record<string, {
+            accounts: Array<{ file: string, enabled: boolean }>
+          }>
+        }
+      },
+      settings: {
+        accountEnabled: Record<string, boolean>
+      }
+    }
+
+    expect(state.settings.accountEnabled['claude-a.json']).toBe(false)
+    const claudeAccount = state.status.accounts.providers.claude.accounts.find((acc) => acc.file === 'claude-a.json')
+    expect(claudeAccount?.enabled).toBe(false)
   })
 })

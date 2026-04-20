@@ -11,3 +11,4 @@ dist
 resources/cli-proxy-api-plus
 resources/cli-proxy-api-plus.exe
 resources/CLIPROXY_VERSION
+.snapshots/

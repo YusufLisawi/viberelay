@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import process from 'node:process'
 import { runAccountsCommand } from './commands/accounts.js'
+import { runAppIndicatorCommand } from './commands/appindicator.js'
 import { runDashboardCommand } from './commands/dashboard.js'
 import { runLogsCommand } from './commands/logs.js'
 import { runMenubarCommand } from './commands/menubar.js'
@@ -40,6 +41,7 @@ Proxy:
                      Request counts + 5h/weekly quotas (live refresh in TTY)
   dashboard          Open the web UI
   menubar ...        Install/remove the macOS SwiftBar menu-bar plugin (run \`viberelay menubar help\`)
+  appindicator ...   Install/remove the GNOME top-bar indicator helper (run \`viberelay appindicator help\`)
   profile ... (p)    Manage local Claude profiles (run \`viberelay profile help\`)
   run [-d] <name>    Shortcut for \`viberelay profile run\` (also: \`r\`, \`exec\`)
 
@@ -112,6 +114,9 @@ async function main() {
       return
     case 'menubar':
       process.stdout.write(await runMenubarCommand({}) + '\n')
+      return
+    case 'appindicator':
+      process.stdout.write(await runAppIndicatorCommand({}) + '\n')
       return
     case 'profile':
     case 'p':

@@ -55,9 +55,10 @@ irm https://github.com/YusufLisawi/viberelay/releases/latest/download/install.ps
    viberelay p c               # interactive wizard: name + opus/sonnet/haiku groups
    viberelay run -d vibe       # launch `claude` with profile env (-d = --dangerously-skip-permissions)
    ```
-6. (macOS, optional) Menu-bar widget showing live pool usage:
+6. Optional desktop widget showing live pool usage:
    ```bash
-   viberelay menubar install   # auto-installs SwiftBar via brew, drops plugin in, launches it
+   viberelay menubar install       # macOS: auto-installs SwiftBar via brew, drops plugin in, launches it
+   viberelay appindicator install  # GNOME desktops: installs the top-bar indicator helper
    ```
 
 ### Environment overrides (installer)
@@ -118,6 +119,16 @@ viberelay menubar install   # auto-installs SwiftBar via brew, drops plugin in p
 Click the menu-bar icon to see pool-wide usage, per-account 5h/weekly windows,
 the next account about to rotate in (▶), and the last model group + real model
 that was routed.
+
+### GNOME top-bar indicator (optional)
+
+```bash
+viberelay appindicator install
+```
+
+This installs a small GNOME AppIndicator helper under `~/.config/viberelay/appindicator/`
+and an autostart desktop entry under `~/.config/autostart/` so the indicator appears
+in the GNOME top bar for the current session and future logins.
 
 ### Self-update
 

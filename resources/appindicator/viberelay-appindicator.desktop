@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=VibeRelay Indicator
+Comment=Show VibeRelay usage in the GNOME top bar
+Exec=python3 __HELPER__
+Terminal=false
+X-GNOME-Autostart-enabled=true
+OnlyShowIn=GNOME;Ubuntu;

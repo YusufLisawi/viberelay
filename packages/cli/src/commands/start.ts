@@ -14,6 +14,8 @@ export async function runStartCommand(options: StartCommandOptions): Promise<str
     // Another start is in progress or the daemon is already live.
     const existing = await currentDaemonPid(paths)
     if (existing) return `viberelay-daemon already running (pid ${existing})`
+    const httpPid = await probeRunningDaemonPid(options.baseUrl)
+    if (httpPid !== null) return `viberelay-daemon already running (pid ${httpPid})`
     return 'viberelay-daemon start already in progress — please wait'
   }
 
@@ -21,6 +23,15 @@ export async function runStartCommand(options: StartCommandOptions): Promise<str
     // Re-check inside the lock to handle any race before we got here.
     const existing = await currentDaemonPid(paths)
     if (existing) return `viberelay-daemon already running (pid ${existing})`
+
+    // A daemon may already be listening (SwiftBar, launchd, tsx runner) with
+    // no matching pidfile. Probe HTTP so we don't spawn a duplicate that
+    // crashes on port-in-use.
+    const httpPid = await probeRunningDaemonPid(options.baseUrl)
+    if (httpPid !== null) {
+      await releaseLock(paths)
+      return `viberelay-daemon already running (pid ${httpPid})`
+    }
 
     const pid = await spawnDaemon(paths)
     // PID file is now written — safe to drop the lock.
@@ -37,6 +48,18 @@ export async function runStartCommand(options: StartCommandOptions): Promise<str
     // Always remove the lock on failure so the next attempt can proceed.
     await releaseLock(paths)
     throw error
+  }
+}
+
+async function probeRunningDaemonPid(baseUrl: string): Promise<number | null> {
+  try {
+    const response = await fetch(`${baseUrl}/status`)
+    if (!response.ok) return null
+    const body = await response.json() as { proxy?: { pid?: number } }
+    return typeof body.proxy?.pid === 'number' ? body.proxy.pid : 0
+  } catch (error) {
+    if (isConnectionRefused(error)) return null
+    return null
   }
 }
 

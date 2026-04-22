@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessByStdio } from 'node:child_process'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { access, mkdir, readFile as readFileBuffer, writeFile as writeFileBuffer } from 'node:fs/promises'
+import { access, mkdir, readFile as readFileBuffer, unlink, writeFile as writeFileBuffer } from 'node:fs/promises'
 import { constants as fsConstants } from 'node:fs'
 import { dirname, resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -275,7 +275,8 @@ async function buildStatusPayload(started: StartedDaemon, authDir: string, model
       host: started.host,
       port: started.port,
       target_port: targetPort,
-      running: true
+      running: true,
+      pid: started.pid
     },
     model_groups: {
       last_hit_by_group_id: modelGroupRouter.lastResolvedModelsByGroupId()
@@ -586,6 +587,20 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
             return
           }
           await settingsStore?.removeAccount(accountFile)
+          try {
+            await unlink(join(authDir, accountFile))
+          } catch {
+            // file already gone — proceed
+          }
+          for (const bucket of Object.values(usageStats.accountCounts)) {
+            delete bucket[accountFile]
+          }
+          for (const bucket of Object.values(providerUsageByAccount)) {
+            delete bucket[accountFile]
+          }
+          if (usageStats.lastAccount === accountFile) {
+            usageStats.lastAccount = undefined
+          }
           response.writeHead(200, { 'content-type': 'application/json' })
           response.end(JSON.stringify({ ok: true }))
           return
@@ -780,9 +795,13 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
           return
         }
 
-        if (request.method === 'POST' && url.pathname === '/relay/stop') {
+        if (request.method === 'POST' && (url.pathname === '/relay/stop' || url.pathname === '/relay/shutdown')) {
           response.writeHead(200, { 'content-type': 'application/json' })
-          response.end(JSON.stringify({ ok: true, state: 'stopped' }))
+          response.end(JSON.stringify({ ok: true, state: 'stopped', pid: process.pid }))
+          // Trigger graceful shutdown after the response flushes. SIGTERM is
+          // handled by runner.ts, which calls controller.stop() and reaps the
+          // Go child before exiting.
+          setTimeout(() => { try { process.kill(process.pid, 'SIGTERM') } catch { /* ignore */ } }, 50)
           return
         }
 

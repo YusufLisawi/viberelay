@@ -64,10 +64,10 @@ async function main() {
       process.stdout.write(await runStartCommand({ baseUrl }) + '\n')
       return
     case 'stop':
-      process.stdout.write(await runStopCommand() + '\n')
+      process.stdout.write(await runStopCommand({ baseUrl }) + '\n')
       return
     case 'restart':
-      process.stdout.write(await runStopCommand() + '\n')
+      process.stdout.write(await runStopCommand({ baseUrl }) + '\n')
       process.stdout.write(await runStartCommand({ baseUrl }) + '\n')
       return
     case 'status':

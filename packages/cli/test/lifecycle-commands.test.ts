@@ -29,7 +29,7 @@ describe('lifecycle commands', () => {
   })
 
   it('stop is a no-op when no PID file exists', async () => {
-    const output = await runStopCommand()
+    const output = await runStopCommand({ baseUrl: 'http://127.0.0.1:59999' })
     expect(output).toContain('not running')
   })
 

@@ -20,6 +20,7 @@ export interface DashboardStatusPayload {
     port: number
     target_port: number
     running: boolean
+    pid?: number
   }
   model_groups: {
     last_hit_by_group_id: Record<string, string>

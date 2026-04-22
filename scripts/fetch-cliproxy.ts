@@ -9,7 +9,7 @@
  * Version defaults to `latest`. The resolved tag is written to
  * resources/CLIPROXY_VERSION for later use by `viberelay update`.
  *
- * Source: https://github.com/router-for-me/CLIProxyAPIPlus/releases
+ * Source: https://github.com/HsnSaboor/CLIProxyAPIPlus/releases
  */
 
 import { createHash } from 'node:crypto'
@@ -19,7 +19,7 @@ import { $ } from 'bun'
 
 const REPO_ROOT = resolve(import.meta.dir, '..')
 const RESOURCES = join(REPO_ROOT, 'resources')
-const UPSTREAM_REPO = 'router-for-me/CLIProxyAPIPlus'
+const UPSTREAM_REPO = 'HsnSaboor/CLIProxyAPIPlus'
 
 const TARGET_MAP: Record<string, { goos: string, goarch: string, ext: 'tar.gz' | 'zip', binaryName: string }> = {
   'bun-darwin-x64':   { goos: 'darwin',  goarch: 'amd64', ext: 'tar.gz', binaryName: 'cli-proxy-api-plus' },

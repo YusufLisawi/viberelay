@@ -83,8 +83,9 @@ Child `cli-proxy-api-plus` runs on `127.0.0.1:8328` — managed automatically.
 viberelay dashboard       # sign in to Claude / Codex / etc. in the browser
 viberelay accounts        # verify at least one account is active
 viberelay p c             # interactive profile wizard
-viberelay run -d vibe     # launches claude with that profile's env
-viberelay menubar install # macOS only: live pool-usage widget in the menu bar
+viberelay run -d vibe           # launches claude with that profile's env
+viberelay menubar install       # macOS only: live pool-usage widget in the menu bar
+viberelay appindicator install  # GNOME desktops: install the top-bar indicator helper
 ```
 
 ## Command map
@@ -108,6 +109,7 @@ viberelay menubar install # macOS only: live pool-usage widget in the menu bar
 | **`viberelay run [-d] <name>`** | Top-level shortcut for `profile run` (also: `r`, `exec`) |
 | `viberelay autostart [enable\|disable\|status]` | Enable/disable daemon auto-start on login (friendly alias for `service`) |
 | `viberelay menubar [install\|uninstall\|status]` | macOS: install SwiftBar menu-bar plugin showing live pool usage |
+| `viberelay appindicator [install\|uninstall\|status\|path]` | GNOME desktops: install the top-bar indicator helper plus autostart entry |
 | `viberelay update` | Self-upgrade to the latest release |
 | `viberelay update --check` | Report if an update is available without installing |
 | `viberelay update --channel nightly` | Follow the rolling `main` build |

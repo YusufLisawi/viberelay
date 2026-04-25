@@ -3,10 +3,13 @@
 Multi-provider Claude API proxy. Point `claude` at it, share one pool of Claude / Codex / Copilot / Ollama accounts across your agents, and get round-robin + automatic failover for free.
 
 - **Proxy + daemon** — local HTTP server that speaks Anthropic, OpenAI, and OpenAI-chat APIs and forwards to a pool of upstream accounts managed by [`cli-proxy-api`](https://github.com/router-for-me/CLIProxyAPI).
-- **Model groups** — alias tiers like `opus-high`, `sonnet-balanced`, `haiku-fast` that map to one or more real models; the router round-robins and fails over between them.
+- **Model groups** — alias tiers like `high`, `mid`, `low` that map to one or more real models. Pick a distribution strategy per group: **round-robin**, **weighted** (e.g. 70/20/10 split), or **primary + fallback**. Failover on errors works under all three.
+- **Workspace labels** — same email across multiple ChatGPT team workspaces is auto-disambiguated (plan + workspace id suffix); set a custom display name per account from the dashboard.
 - **Profile system** — per-workspace JSON profiles that wire `claude` to the proxy with your chosen group aliases for opus/sonnet/haiku, optional clp-style account isolation.
+- **Multi-machine** — `viberelay sync` mirrors auth tokens / settings (and optionally `~/.claude` config + viberelay profiles) over SSH; `viberelay use remote <host>` tunnels a remote daemon to `127.0.0.1:8327` so every client (Claude Code, openclaw, SwiftBar) keeps using the same URL.
+- **OpenClaw integration** — `viberelay openclaw setup` writes a provider into `~/.openclaw/openclaw.json` with your live model groups, switchable from any chat (Telegram, Discord, …) via `/model viberelay/<group>`.
 - **CLI** — one binary, zero Node runtime required on the target machine; self-updates from GitHub releases.
-- **Web dashboard** — provider toggles, account switches, 5h / weekly quota countdowns, group editor, live logs.
+- **Web dashboard** — provider toggles, account switches, 5h / weekly quota countdowns, group editor with strategy picker, custom labels, live logs.
 
 ## Installation
 
@@ -136,6 +139,77 @@ in the GNOME top bar for the current session and future logins.
 viberelay update --check                 # latest stable
 viberelay update --channel nightly       # rolling build from main
 ```
+
+## Model groups & distribution strategies
+
+Each group has a list of real models the router can pick from, and a strategy that decides **how** it picks. Failover on upstream errors (429/500/etc, invalid thinking signature, model_not_supported) walks the rest of the list regardless of strategy.
+
+| Strategy | Behavior |
+|---|---|
+| `round-robin` (default) | rotate through models, one per request |
+| `weighted` | split traffic by per-model weights (e.g. `70, 20, 10` → 70/20/10) |
+| `primary` | always try `models[0]`; only walk the rest on errors |
+
+Edit a group from the dashboard: pick the strategy from the dropdown; for `weighted` enter comma-separated weights in the same order as the models. Live shape (% per chip, "primary" tag) is shown in the list view.
+
+## Multi-machine workflows
+
+Common pattern: a beefy Linux home server runs viberelay 24/7 (more accounts, no laptop sleep), laptops/tablets sync credentials to it and tunnel its dashboard.
+
+### `viberelay sync` — mirror state to another host
+
+```bash
+viberelay sync user@100.125.21.37            # push tokens + settings (default)
+viberelay sync user@host --pull              # pull instead
+viberelay sync user@host --restart           # bounce remote daemon after push
+viberelay sync user@host --dry-run
+
+# bigger payloads
+viberelay sync user@host --profiles          # also ~/.viberelay/profiles/
+viberelay sync user@host --claude            # curated ~/.claude/ subset
+viberelay sync user@host --all               # tokens + settings + profiles + claude
+```
+
+Always synced: `~/.cli-proxy-api/*.json` (OAuth tokens / API keys) + `~/.viberelay/state/settings-state.json` (account labels, model groups, prefs).
+
+`--claude` curated subset: `CLAUDE.md`, `settings.json`, `keybindings.json`, `agents/`, `commands/`, `hooks/`, `skills/`, `plugins/`. Skipped: `projects/`, `sessions/`, `history.jsonl`, `cache/`, `paste-cache/`, `file-history/`, `shell-snapshots/`, `todos/`, `plans/`, `backups/`, `debug/`, `ide/`, `~/.claude.json` (machine-local or live state).
+
+Mechanism: `rsync -az` over `ssh`. Tailscale IPs work as the host. `--delete` is push-only (so a half-empty laptop pull never wipes the remote).
+
+### `viberelay use` — switch between local and tunneled remote daemon
+
+```bash
+viberelay use remote user@100.125.21.37   # stops local, opens ssh -L 8327:127.0.0.1:8327
+viberelay use local                       # closes tunnel, restarts local daemon
+viberelay use show                        # current mode + tunnel pid health
+viberelay use refresh                     # reconcile (clears dead tunnel pid)
+```
+
+Once tunneled, every client keeps using `http://127.0.0.1:8327` — Claude Code profiles, openclaw, SwiftBar, dashboard URLs all keep working unchanged. State persists at `~/.viberelay/state/active.json`. SwiftBar reads this and shows "Server: tunneled → user@host" + a "Switch to local" menu item when remote.
+
+### `viberelay dashboard <user@host>` — view a remote dashboard
+
+```bash
+viberelay dashboard user@host             # SSH-tunnels remote :8327 → http://127.0.0.1:18327
+```
+
+Foreground command: opens browser to the tunnel URL (Cmd-clickable in terminal), Ctrl-C tears down the tunnel. Independent from `use remote` — just for one-off inspection.
+
+## OpenClaw
+
+[OpenClaw](https://github.com/openclaw/openclaw) is a personal AI assistant that runs on your devices and routes through chat channels (Telegram, Discord, Slack, etc.). `viberelay openclaw` wires it through the local proxy so users can switch between your model groups via in-chat slash commands.
+
+```bash
+viberelay openclaw setup                  # auto-discovers live groups from running daemon
+viberelay openclaw setup --set-default-model claude-sonnet-4-5
+viberelay openclaw refresh                # re-pull catalog (after creating new groups)
+viberelay openclaw status                 # confirm wiring
+viberelay openclaw print                  # dump the JSON snippet without writing
+```
+
+In a chat: `/model viberelay/high`, `/model viberelay/mid`, `/model viberelay/<your-custom-group>`. OpenClaw's `/model list` picker shows everything viberelay's `/v1/models` exposes.
+
+Existing config in `~/.openclaw/openclaw.json` is merged (other providers preserved); a timestamped `.bak` is written before each change.
 
 Everything else: **[packages/cli/README.md](packages/cli/README.md)** — full command reference, profile flags, release pipeline, HTTP endpoints.
 

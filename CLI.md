@@ -912,3 +912,74 @@ If you want clean, reliable Claude usage:
 - always launch Claude through `viberelay profile run`
 
 That gives repeatable routing, isolated Claude state, and clean switching between work modes.
+
+---
+
+## Multi-machine + remote workflows
+
+### Sync credentials and settings (`sync`)
+
+```bash
+viberelay sync user@host                     # push tokens + settings (default)
+viberelay sync user@host --pull              # pull instead of push
+viberelay sync user@host --port 22           # non-default SSH port
+viberelay sync user@host --dry-run           # preview rsync changes
+viberelay sync user@host --restart           # also `viberelay restart` on remote after push
+
+viberelay sync user@host --profiles          # also ~/.viberelay/profiles/
+viberelay sync user@host --claude            # curated ~/.claude/ subset
+viberelay sync user@host --all               # tokens + settings + profiles + claude
+```
+
+Mechanism: `rsync -az` over `ssh`. Tailscale IPs work as the host. `--delete` is push-only (a pull never wipes additions on the local side).
+
+`--claude` carries: `CLAUDE.md`, `settings.json`, `keybindings.json`, `agents/`, `commands/`, `hooks/`, `skills/`, `plugins/`. It deliberately skips: `projects/`, `sessions/`, `history.jsonl`, caches, `paste-cache/`, `file-history/`, `shell-snapshots/`, `todos/`, `plans/`, `backups/`, `debug/`, `ide/`, and `~/.claude.json` (live session state).
+
+### Tunnel a remote daemon (`use`)
+
+```bash
+viberelay use remote user@host               # stops local, opens ssh -L 8327:127.0.0.1:8327
+viberelay use local                          # tears down tunnel, starts local daemon
+viberelay use show                           # current mode + ssh pid health
+viberelay use refresh                        # reconcile (clear dead tunnel pid)
+```
+
+Tunnel options: `--ssh-port`, `--remote-port`, `--local-port`. State persists at `~/.viberelay/state/active.json` so subsequent `viberelay status`/`usage`/`dashboard` calls go to the remote daemon transparently. The SwiftBar plugin reads the same state file and shows tunnel mode + a "Switch to local" menu item.
+
+### One-off remote dashboard (`dashboard <host>`)
+
+```bash
+viberelay dashboard user@host                # SSH-tunnels :8327 → http://127.0.0.1:18327
+viberelay dashboard user@host --ssh-port 2222 --remote-port 8327 --local-port 18327
+```
+
+Foreground command — opens browser, blocks on the SSH tunnel, Ctrl-C closes it. Independent from `use remote`.
+
+---
+
+## OpenClaw integration
+
+```bash
+viberelay openclaw setup                     # auto-discover groups from running daemon
+viberelay openclaw setup --set-default-model claude-sonnet-4-5
+viberelay openclaw refresh                   # re-pull live catalog
+viberelay openclaw status                    # confirm wiring
+viberelay openclaw print                     # dump JSON snippet without writing
+viberelay openclaw setup --static            # skip discovery, use baked-in defaults
+```
+
+Writes a `viberelay` provider into `~/.openclaw/openclaw.json` pointing at `http://127.0.0.1:8327/v1` with a curated subset of models (every viberelay-owned group, plus clean `claude-{opus,sonnet,haiku}-N-N` and `gpt-N.N(-mini|nano|codex)?` ids). In a chat (Telegram, Discord, …): `/model viberelay/high` (or any group/model id).
+
+---
+
+## Model group strategies
+
+When editing a group from the dashboard, pick a strategy:
+
+| Strategy | Picks |
+|---|---|
+| `round-robin` (default) | rotate through models, one per request |
+| `weighted` | split by per-model weights, e.g. `70, 20, 10` |
+| `primary` | always `models[0]`; only walk the rest on errors |
+
+Failover on errors (429/500/502/503, invalid thinking signature, model_not_supported) walks the rest of the list under all strategies. Weights are a comma-separated list in the same order as the models; missing/zero weights degrade to round-robin behavior.

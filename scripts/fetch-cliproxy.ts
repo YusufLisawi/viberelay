@@ -1,15 +1,15 @@
 #!/usr/bin/env bun
 /**
- * Download the upstream `cli-proxy-api-plus` Go binary for a given target
+ * Download the upstream `cli-proxy-api` Go binary for a given target
  * and drop it into ./resources/ so packaging can ship it.
  *
  *   bun scripts/fetch-cliproxy.ts --target bun-darwin-arm64
- *   bun scripts/fetch-cliproxy.ts --target bun-linux-x64 --version v6.9.28-0
+ *   bun scripts/fetch-cliproxy.ts --target bun-linux-x64 --version v6.9.37
  *
  * Version defaults to `latest`. The resolved tag is written to
  * resources/CLIPROXY_VERSION for later use by `viberelay update`.
  *
- * Source: https://github.com/HsnSaboor/CLIProxyAPIPlus/releases
+ * Source: https://github.com/router-for-me/CLIProxyAPI/releases
  */
 
 import { createHash } from 'node:crypto'
@@ -19,14 +19,14 @@ import { $ } from 'bun'
 
 const REPO_ROOT = resolve(import.meta.dir, '..')
 const RESOURCES = join(REPO_ROOT, 'resources')
-const UPSTREAM_REPO = 'HsnSaboor/CLIProxyAPIPlus'
+const UPSTREAM_REPO = 'router-for-me/CLIProxyAPI'
 
 const TARGET_MAP: Record<string, { goos: string, goarch: string, ext: 'tar.gz' | 'zip', binaryName: string }> = {
-  'bun-darwin-x64':   { goos: 'darwin',  goarch: 'amd64', ext: 'tar.gz', binaryName: 'cli-proxy-api-plus' },
-  'bun-darwin-arm64': { goos: 'darwin',  goarch: 'arm64', ext: 'tar.gz', binaryName: 'cli-proxy-api-plus' },
-  'bun-linux-x64':    { goos: 'linux',   goarch: 'amd64', ext: 'tar.gz', binaryName: 'cli-proxy-api-plus' },
-  'bun-linux-arm64':  { goos: 'linux',   goarch: 'arm64', ext: 'tar.gz', binaryName: 'cli-proxy-api-plus' },
-  'bun-windows-x64':  { goos: 'windows', goarch: 'amd64', ext: 'zip',    binaryName: 'cli-proxy-api-plus.exe' }
+  'bun-darwin-x64':   { goos: 'darwin',  goarch: 'amd64', ext: 'tar.gz', binaryName: 'cli-proxy-api' },
+  'bun-darwin-arm64': { goos: 'darwin',  goarch: 'arm64', ext: 'tar.gz', binaryName: 'cli-proxy-api' },
+  'bun-linux-x64':    { goos: 'linux',   goarch: 'amd64', ext: 'tar.gz', binaryName: 'cli-proxy-api' },
+  'bun-linux-arm64':  { goos: 'linux',   goarch: 'arm64', ext: 'tar.gz', binaryName: 'cli-proxy-api' },
+  'bun-windows-x64':  { goos: 'windows', goarch: 'amd64', ext: 'zip',    binaryName: 'cli-proxy-api.exe' }
 }
 
 interface Args { target: string, version: string }
@@ -57,7 +57,7 @@ async function resolveTag(version: string): Promise<string> {
 
 function assetName(tag: string, map: typeof TARGET_MAP[string]): string {
   const bare = tag.startsWith('v') ? tag.slice(1) : tag
-  return `CLIProxyAPIPlus_${bare}_${map.goos}_${map.goarch}.${map.ext}`
+  return `CLIProxyAPI_${bare}_${map.goos}_${map.goarch}.${map.ext}`
 }
 
 /**

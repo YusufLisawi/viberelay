@@ -2,7 +2,7 @@
 
 Multi-provider Claude API proxy. Point `claude` at it, share one pool of Claude / Codex / Copilot / Ollama accounts across your agents, and get round-robin + automatic failover for free.
 
-- **Proxy + daemon** — local HTTP server that speaks Anthropic, OpenAI, and OpenAI-chat APIs and forwards to a pool of upstream accounts managed by [`cli-proxy-api-plus`](https://github.com/router-for-me/CLIProxyAPIPlus).
+- **Proxy + daemon** — local HTTP server that speaks Anthropic, OpenAI, and OpenAI-chat APIs and forwards to a pool of upstream accounts managed by [`cli-proxy-api`](https://github.com/router-for-me/CLIProxyAPI).
 - **Model groups** — alias tiers like `opus-high`, `sonnet-balanced`, `haiku-fast` that map to one or more real models; the router round-robins and fails over between them.
 - **Profile system** — per-workspace JSON profiles that wire `claude` to the proxy with your chosen group aliases for opus/sonnet/haiku, optional clp-style account isolation.
 - **CLI** — one binary, zero Node runtime required on the target machine; self-updates from GitHub releases.
@@ -143,7 +143,7 @@ Everything else: **[packages/cli/README.md](packages/cli/README.md)** — full c
 
 ```
 ┌──────────────┐    ┌──────────────────────┐    ┌────────────────────────┐
-│  claude /    │    │  viberelay-daemon    │    │  cli-proxy-api-plus    │
+│  claude /    │    │  viberelay-daemon    │    │  cli-proxy-api    │
 │  agents      ├──► │  :8327 (Node/Bun)    ├───►│  :8328 (Go)            │
 │  (your apps) │    │  • dashboard          │    │  • upstream pools      │
 │              │    │  • model-group router │    │  • round-robin         │
@@ -156,7 +156,7 @@ Everything else: **[packages/cli/README.md](packages/cli/README.md)** — full c
 ```
 
 - `viberelay-daemon` owns the public HTTP surface, the dashboard, model-group routing, settings persistence.
-- `cli-proxy-api-plus` (bundled from upstream) holds provider accounts, rotates tokens, and forwards to the real upstream APIs.
+- `cli-proxy-api` (bundled from upstream) holds provider accounts, rotates tokens, and forwards to the real upstream APIs.
 - `viberelay` (CLI) is a thin client over the daemon's HTTP endpoints + a local profile manager for Claude Code.
 
 ## Repo layout
@@ -166,7 +166,7 @@ packages/
   cli/       # `viberelay` binary — commands, profile wizard, self-update
   daemon/    # `viberelay-daemon` binary — HTTP server + dashboard
   shared/    # types shared between cli & daemon
-resources/   # config.yaml, dashboard static, upstream cli-proxy-api-plus (fetched in CI)
+resources/   # config.yaml, dashboard static, upstream cli-proxy-api (fetched in CI)
 scripts/
   build.ts             # Bun --compile cross-target
   package-release.ts   # tar.gz / zip per target with bins + resources

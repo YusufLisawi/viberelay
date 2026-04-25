@@ -212,7 +212,7 @@ function renderBody(
             <div class="quick-add-row">
               ${['claude', 'codex', 'github-copilot', 'opencode', 'nvidia', 'ollama', 'openrouter'].map((provider) => `<button type="button" class="btn" data-open-modal="add-account-modal" data-provider="${provider}">+ ${provider}</button>`).join('')}
             </div>
-            ${providerEntries.length === 0 ? `<p class="empty">No accounts. Use + buttons above or run <span class="kbd">cli-proxy-api-plus -claude-login</span> / <span class="kbd">-codex-login</span>.</p>` : providerEntries.map(([provider, summary]) => {
+            ${providerEntries.length === 0 ? `<p class="empty">No accounts. Use + buttons above or run <span class="kbd">cli-proxy-api -claude-login</span> / <span class="kbd">-codex-login</span>.</p>` : providerEntries.map(([provider, summary]) => {
               const providerRequests = usage.provider_counts?.[provider] ?? 0
               return `<div class="provider-group">
                 <div class="provider-head">
@@ -919,7 +919,7 @@ const SCRIPT = `
     keyInput.value = '';
     help.textContent = needsKey
       ? 'API key flow. Save auth JSON into ~/.cli-proxy-api.'
-      : 'Browser login flow through cli-proxy-api-plus.';
+      : 'Browser login flow through cli-proxy-api.';
   }
 
   document.addEventListener('click', (ev) => {

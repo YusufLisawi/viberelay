@@ -76,7 +76,7 @@ const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? ''
 const defaultStateDir = isCompiled
   ? join(homeDir, '.viberelay', 'state')
   : join(devRepoRoot, '.state')
-export const bundledBinaryPath = resolve(repoRoot, process.platform === 'win32' ? 'resources/cli-proxy-api-plus.exe' : 'resources/cli-proxy-api-plus')
+export const bundledBinaryPath = resolve(repoRoot, process.platform === 'win32' ? 'resources/cli-proxy-api.exe' : 'resources/cli-proxy-api')
 export const bundledConfigPath = resolve(repoRoot, 'resources/config.yaml')
 const defaultAuthDir = join(homeDir, '.cli-proxy-api')
 const targetPort = 8328

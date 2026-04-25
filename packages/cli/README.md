@@ -28,7 +28,7 @@ Installs to `%USERPROFILE%\.viberelay` and adds its `bin` to user PATH.
 
 ### Manual download
 
-Grab `viberelay-<os>-<arch>.{tar.gz,zip}` from [Releases](https://github.com/vibeproxy/viberelay/releases), extract, and put `bin/viberelay` + `bin/viberelay-daemon` on your `PATH`. Keep `resources/` next to them — the daemon needs `resources/cli-proxy-api-plus` + `resources/config.yaml` + `resources/static/` at runtime.
+Grab `viberelay-<os>-<arch>.{tar.gz,zip}` from [Releases](https://github.com/vibeproxy/viberelay/releases), extract, and put `bin/viberelay` + `bin/viberelay-daemon` on your `PATH`. Keep `resources/` next to them — the daemon needs `resources/cli-proxy-api` + `resources/config.yaml` + `resources/static/` at runtime.
 
 ### From source (dev)
 
@@ -75,7 +75,7 @@ viberelay stop
 viberelay restart
 ```
 
-Child `cli-proxy-api-plus` runs on `127.0.0.1:8328` — managed automatically.
+Child `cli-proxy-api` runs on `127.0.0.1:8328` — managed automatically.
 
 ### First-run journey
 
@@ -325,7 +325,7 @@ VIBERELAY_BASE_URL=http://my-server:8327 viberelay status
 | Component | Port | Notes |
 | --- | --- | --- |
 | viberelay daemon | `8327` | HTTP API + dashboard |
-| cli-proxy-api-plus child | `8328` | Spawned by daemon |
+| cli-proxy-api child | `8328` | Spawned by daemon |
 | VibeProxy (parent app) | `8317` / `8318` | Untouched — run side-by-side |
 
 ## Raw daemon endpoints
@@ -410,9 +410,9 @@ Release channels:
 
 Switching channels: just pass `--channel <channel>`. Downgrading is the same command run against an older tag (set `VIBERELAY_VERSION` when running `install.sh`).
 
-## Upstream `cli-proxy-api-plus` child
+## Upstream `cli-proxy-api` child
 
-The daemon spawns `cli-proxy-api-plus` — a Go binary from [router-for-me/CLIProxyAPIPlus](https://github.com/router-for-me/CLIProxyAPIPlus). We fetch the right prebuilt archive for each target in CI:
+The daemon spawns `cli-proxy-api` — a Go binary from [router-for-me/CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI). We fetch the right prebuilt archive for each target in CI:
 
 ```bash
 bun run cliproxy:fetch -- --target bun-darwin-arm64            # latest upstream
@@ -436,7 +436,7 @@ bun run package -- --target bun-darwin-arm64
 
 Supported `--target` values: `bun-darwin-x64`, `bun-darwin-arm64`, `bun-linux-x64`, `bun-linux-arm64`, `bun-windows-x64`.
 
-**Caveat — child binary:** the daemon spawns `cli-proxy-api-plus`, a Go binary shipped in `resources/`. The copy in this repo matches one OS/arch only; CI must drop the right build in before packaging for each target. The `release.yml` workflow in `.github/workflows/` has a checkpoint step where that fetch/build should happen.
+**Caveat — child binary:** the daemon spawns `cli-proxy-api`, a Go binary shipped in `resources/`. The copy in this repo matches one OS/arch only; CI must drop the right build in before packaging for each target. The `release.yml` workflow in `.github/workflows/` has a checkpoint step where that fetch/build should happen.
 
 ## Releasing
 

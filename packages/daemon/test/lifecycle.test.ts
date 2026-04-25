@@ -47,7 +47,7 @@ describe('daemon lifecycle', () => {
     await expect(fetch(`http://${started.host}:${started.port}/health`)).rejects.toThrow()
   })
 
-  it('starts CLIProxyAPIPlus child process', async () => {
+  it('starts CLIProxyAPI child process', async () => {
     const controller = createDaemonController({ port: 0 })
     controllers.push(controller)
 

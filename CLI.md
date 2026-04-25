@@ -22,7 +22,7 @@ Flow:
 
 1. `viberelay-daemon` listens on `http://127.0.0.1:8327`
 2. daemon manages routing, dashboard, settings, and model groups
-3. daemon spawns `cli-proxy-api-plus` on `127.0.0.1:8328`
+3. daemon spawns `cli-proxy-api` on `127.0.0.1:8328`
 4. Claude Code can be launched with env vars that point to `viberelay` instead of direct Anthropic API
 5. profile files make that setup repeatable
 
@@ -77,7 +77,7 @@ bunx tsx packages/daemon/src/runner.ts
 Default ports:
 
 - daemon: `8327`
-- child `cli-proxy-api-plus`: `8328`
+- child `cli-proxy-api`: `8328`
 
 ### 2. Check daemon health
 

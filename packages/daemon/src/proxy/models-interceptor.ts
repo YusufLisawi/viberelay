@@ -10,7 +10,7 @@ export interface ModelsResponse {
 const reasoningEfforts = ['low', 'medium', 'high']
 const effortLevels = ['low', 'medium', 'high', 'max']
 const thinkingBudgets = [8000, 16000, 32000]
-const syntheticOpenAIModels = ['gpt-5.4-mini', 'gpt-5.4-nano']
+const syntheticOpenAIModels = ['gpt-5.4-mini', 'gpt-5.4-nano', 'gpt-5.5']
 
 export function shouldInterceptModelsRequest(method: string, path: string) {
   return method === 'GET' && (path === '/v1/models' || path === '/api/v1/models')
@@ -21,15 +21,17 @@ export function injectGroupModels(response: ModelsResponse, groupNames: string[]
   const existing = data.map((entry) => ({ id: entry.id, owner: entry.owned_by ?? 'viberelay' }))
   const existingOpenAI = new Set(existing.filter((entry) => entry.owner === 'openai').map((entry) => entry.id))
 
+  const reasoningSeed = [...existing]
   if (existing.some((entry) => entry.owner === 'openai')) {
     for (const modelId of syntheticOpenAIModels) {
       if (!existingOpenAI.has(modelId)) {
         data.push({ id: modelId, owned_by: 'openai' })
+        reasoningSeed.push({ id: modelId, owner: 'openai' })
       }
     }
   }
 
-  for (const entry of existing) {
+  for (const entry of reasoningSeed) {
     if (entry.owner === 'anthropic' && entry.id.startsWith('claude-')) {
       for (const budget of thinkingBudgets) {
         data.push({ id: `${entry.id}-thinking-${budget}`, owned_by: entry.owner })

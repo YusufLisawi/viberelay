@@ -5,7 +5,7 @@ correct changes to this repo. Read it before touching code. It's opinionated on
 purpose — the rules below exist because we hit the failure mode at least once.
 
 If you only read one thing: **the CLI talks to the daemon over HTTP; the daemon
-talks to `cli-proxy-api-plus` over HTTP; nothing else couples them.** Preserve
+talks to `cli-proxy-api` over HTTP; nothing else couples them.** Preserve
 that boundary.
 
 ---
@@ -15,7 +15,7 @@ that boundary.
 viberelay is three processes stacked:
 
 ```
-claude / agents  →  viberelay-daemon (Node/Bun, :8327)  →  cli-proxy-api-plus (Go, :8328)  →  upstream APIs
+claude / agents  →  viberelay-daemon (Node/Bun, :8327)  →  cli-proxy-api (Go, :8328)  →  upstream APIs
 ```
 
 - **`viberelay` (CLI)** — thin client. All state it shows comes from daemon HTTP
@@ -23,10 +23,10 @@ claude / agents  →  viberelay-daemon (Node/Bun, :8327)  →  cli-proxy-api-plu
   (Claude Code env bundles).
 - **`viberelay-daemon` (daemon)** — owns the public surface: proxy endpoints,
   dashboard, model-group router, settings store, log buffer, account loader,
-  provider-usage poller. Spawns `cli-proxy-api-plus` as a managed child.
-- **`cli-proxy-api-plus`** — third-party Go binary (`router-for-me/CLIProxyAPIPlus`).
+  provider-usage poller. Spawns `cli-proxy-api` as a managed child.
+- **`cli-proxy-api`** — third-party Go binary (`router-for-me/CLIProxyAPI`).
   Owns upstream accounts, token refresh, round-robin. We ship the matching build
-  as an asset (`resources/cli-proxy-api-plus[.exe]`).
+  as an asset (`resources/cli-proxy-api[.exe]`).
 
 The daemon is the system of record for runtime state. The CLI never reads its
 own settings from disk — it calls the daemon. Profiles are the only exception
@@ -101,18 +101,18 @@ packages/
 
 resources/                        Shipped in the tarball. Anchor everything
                                   via installRoot (see index.ts).
-  config.yaml                     Default cli-proxy-api-plus config template.
+  config.yaml                     Default cli-proxy-api config template.
   dashboard/                      Static UI assets.
   icons/                          Provider icons. Live here, not under
                                   packages/daemon/resources/.
-  cli-proxy-api-plus[.exe]        Upstream Go child, fetched by
+  cli-proxy-api[.exe]        Upstream Go child, fetched by
                                   scripts/fetch-cliproxy.ts. .gitignored.
 
 scripts/
   build.ts                        Bun --compile. --target for cross.
   package-release.ts              tar.gz / zip. Re-codesigns darwin bins.
   fetch-cliproxy.ts               Pulls the matching Go binary from
-                                  router-for-me/CLIProxyAPIPlus.
+                                  router-for-me/CLIProxyAPI.
 
 install.sh install.ps1            One-liner installers.
 .github/workflows/
@@ -133,7 +133,7 @@ install.sh install.ps1            One-liner installers.
     config.yaml
     dashboard/
     icons/
-    cli-proxy-api-plus[.exe]
+    cli-proxy-api[.exe]
   state/
     daemon.pid           # PID of the running daemon
     daemon.log           # stdio of the daemon + Go child
@@ -263,7 +263,7 @@ Dev state lives in `./.state/`. Delete it to reset.
   resolution at the source.
 - **Don't** introduce a new config format. We have one: `settings.json`, written
   by `settings-store.ts`.
-- **Don't** bypass `cli-proxy-api-plus` and talk to upstream APIs directly from
+- **Don't** bypass `cli-proxy-api` and talk to upstream APIs directly from
   the daemon. Account state + token refresh lives in the Go child.
 - **Don't** pin dependencies to `*` or `latest`. This ships to end-user
   machines; determinism matters.

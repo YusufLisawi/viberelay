@@ -43,7 +43,7 @@ jobs:
       - name: Install deps
         run: bun install --frozen-lockfile
 
-      - name: Fetch cli-proxy-api-plus
+      - name: Fetch cli-proxy-api
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

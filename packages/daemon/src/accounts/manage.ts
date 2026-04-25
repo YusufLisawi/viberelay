@@ -11,7 +11,7 @@ const devRepoRoot = resolve(currentDirectory, '../../../..')
 // virtual filesystem, so we anchor resources on process.execPath instead.
 const isCompiled = import.meta.url.startsWith('file:///$bunfs/') || import.meta.url.includes('/$bunfs/root/')
 const installRoot = isCompiled ? resolve(dirname(process.execPath), '..') : devRepoRoot
-const bundledBinaryPath = resolve(installRoot, process.platform === 'win32' ? 'resources/cli-proxy-api-plus.exe' : 'resources/cli-proxy-api-plus')
+const bundledBinaryPath = resolve(installRoot, process.platform === 'win32' ? 'resources/cli-proxy-api.exe' : 'resources/cli-proxy-api')
 const bundledConfigPath = resolve(installRoot, 'resources/config.yaml')
 
 const MAX_OAUTH_STREAM_BYTES = 1 * 1024 * 1024

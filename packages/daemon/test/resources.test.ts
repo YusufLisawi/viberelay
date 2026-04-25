@@ -5,12 +5,12 @@ import { describe, expect, it } from 'vitest'
 import { bundledBinaryPath, bundledConfigPath } from '../src/index.js'
 
 describe('bundled resources', () => {
-  it('uses viberelay-local bundled CLIProxyAPIPlus binary and config', async () => {
+  it('uses viberelay-local bundled CLIProxyAPI binary and config', async () => {
     const expectedResourcesDir = join(process.cwd(), 'resources')
 
     expect(dirname(bundledBinaryPath)).toBe(expectedResourcesDir)
     expect(dirname(bundledConfigPath)).toBe(expectedResourcesDir)
-    expect(basename(bundledBinaryPath)).toBe(process.platform === 'win32' ? 'cli-proxy-api-plus.exe' : 'cli-proxy-api-plus')
+    expect(basename(bundledBinaryPath)).toBe(process.platform === 'win32' ? 'cli-proxy-api.exe' : 'cli-proxy-api')
     expect(basename(bundledConfigPath)).toBe('config.yaml')
 
     await expect(access(bundledBinaryPath, fsConstants.F_OK | fsConstants.X_OK)).resolves.toBeUndefined()

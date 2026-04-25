@@ -9,7 +9,7 @@ stack from source, how to test your changes, and how to ship them.
 - Git, a POSIX shell (macOS / Linux) or PowerShell (Windows)
 - `codesign` on macOS if you plan to run compiled binaries locally
 - A GitHub token in `GITHUB_TOKEN` if you hit rate limits when fetching the upstream
-  Go binary (`cli-proxy-api-plus`)
+  Go binary (`cli-proxy-api`)
 
 Node is **not** required — everything runs on Bun. `bunx tsc` gives us the types.
 
@@ -33,10 +33,10 @@ packages/
   daemon/     # `viberelay-daemon` binary (HTTP server, dashboard, routing)
   shared/     # types + contracts shared between cli and daemon
 resources/
-  config.yaml              # default cli-proxy-api-plus config
+  config.yaml              # default cli-proxy-api config
   dashboard/               # static assets served by the daemon
   icons/                   # provider icons (shipped in the tarball)
-  cli-proxy-api-plus(.exe) # upstream Go child, fetched by scripts/fetch-cliproxy.ts
+  cli-proxy-api(.exe) # upstream Go child, fetched by scripts/fetch-cliproxy.ts
 scripts/
   build.ts             # Bun --compile for host or all cross-targets
   package-release.ts   # Bundles bin + resources into tar.gz / zip
@@ -71,7 +71,7 @@ In compiled mode state lives in `~/.viberelay/state/` and resources resolve from
 
 ### Talking to a real upstream
 
-The daemon forwards to `cli-proxy-api-plus`. In dev you need that binary present:
+The daemon forwards to `cli-proxy-api`. In dev you need that binary present:
 
 ```bash
 bun scripts/fetch-cliproxy.ts --target bun-darwin-arm64   # or your host target

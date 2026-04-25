@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 /**
  * Package a built target into a distributable archive alongside runtime
- * resources (cli-proxy-api-plus child + config + static dashboard assets).
+ * resources (cli-proxy-api child + config + static dashboard assets).
  *
  *   bun run scripts/package-release.ts --target bun-darwin-arm64
  *
  * Produces: ./dist/archives/viberelay-<target>.tar.gz (or .zip on windows)
  *
- * Caveat: the native `cli-proxy-api-plus` child binary in resources/ must
+ * Caveat: the native `cli-proxy-api` child binary in resources/ must
  * match the target OS/arch. CI is expected to drop the right binary into
  * resources/ before invoking this script.
  */

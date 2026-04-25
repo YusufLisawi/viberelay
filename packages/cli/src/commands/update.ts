@@ -226,7 +226,7 @@ async function ensureExec(prefix: string): Promise<void> {
   for (const entry of await readdir(bin).catch(() => [])) {
     await chmod(join(bin, entry), 0o755).catch(() => undefined)
   }
-  const child = join(prefix, 'resources', 'cli-proxy-api-plus')
+  const child = join(prefix, 'resources', 'cli-proxy-api')
   try {
     await stat(child)
     await chmod(child, 0o755)

@@ -8,7 +8,7 @@ dist
 *.bun-build
 
 # Upstream Go child binary — fetched per platform by scripts/fetch-cliproxy.ts
-resources/cli-proxy-api-plus
-resources/cli-proxy-api-plus.exe
+resources/cli-proxy-api
+resources/cli-proxy-api.exe
 resources/CLIPROXY_VERSION
 .snapshots/

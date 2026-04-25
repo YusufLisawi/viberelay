@@ -29,7 +29,7 @@ describe('appindicator command', () => {
 
   it('prints the bundled helper path', async () => {
     const output = await runAppIndicatorCommand({ argv: ['path'] })
-    expect(output).toMatch(/resources\/appindicator\/viberelay-appindicator\.py$/)
+    expect(output).toMatch(/[\\/]resources[\\/]appindicator[\\/]viberelay-appindicator\.py$/)
   })
 
   it('refuses to install outside Linux', async () => {

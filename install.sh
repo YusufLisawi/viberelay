@@ -85,7 +85,7 @@ main() {
   rsync -a --delete "$tmp/viberelay-${target}/" "$PREFIX/"
 
   chmod +x "$PREFIX/bin/viberelay" "$PREFIX/bin/viberelay-daemon"
-  chmod +x "$PREFIX/resources/cli-proxy-api-plus" 2>/dev/null || true
+  chmod +x "$PREFIX/resources/cli-proxy-api" 2>/dev/null || true
 
   # macOS: Bun-compiled binaries carry an ad-hoc signature that tar invalidates.
   # Kernel sends SIGKILL on launch unless we re-sign after extraction.

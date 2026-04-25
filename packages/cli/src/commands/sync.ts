@@ -93,7 +93,7 @@ export async function runSyncCommand(options: SyncOptions = {}): Promise<string>
     await run('ssh', ['-p', String(port), target, 'mkdir -p ~/.cli-proxy-api ~/.viberelay/state'])
   }
 
-  const baseFlags = ['-az', '--info=stats1', '-e', sshFlag]
+  const baseFlags = ['-az', '--stats', '-e', sshFlag]
   if (dryRun) baseFlags.push('--dry-run', '--itemize-changes')
 
   // Token directory: only carry actual auth files, never logs or derived configs.

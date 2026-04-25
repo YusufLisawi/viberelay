@@ -64,7 +64,7 @@ export interface DashboardSettingsPayload {
   providerEnabled: Record<string, boolean>
   accountEnabled: Record<string, boolean>
   removedAccounts: string[]
-  modelGroups: Array<{ id: string, name: string, models: string[], enabled: boolean }>
+  modelGroups: Array<{ id: string, name: string, models: string[], enabled: boolean, strategy?: 'round-robin' | 'weighted' | 'primary', weights?: number[] }>
   customModels?: Array<{ owner: string, id: string }>
 }
 
@@ -289,7 +289,7 @@ function renderBody(
           <div class="card-head">
             <h2>Model Groups</h2>
             <div class="actions">
-              <span class="sub">${modelGroupEntries.length} total · round-robin with failover</span>
+              <span class="sub">${modelGroupEntries.length} total · failover on errors</span>
               <button type="button" class="btn primary" data-open-modal="group-modal">+ Add Group</button>
             </div>
           </div>
@@ -308,6 +308,8 @@ function renderBody(
                         <input type="hidden" name="groupId" value="${escape(group.id)}" />
                         <input type="hidden" name="groupName" value="${escape(group.name)}" />
                         <input type="hidden" name="groupModels" value="${escape(group.models.join(','))}" />
+                        <input type="hidden" name="strategy" value="${escape(group.strategy ?? 'round-robin')}" />
+                        <input type="hidden" name="weights" value="${escape((group.weights ?? []).join(','))}" />
                         <input type="hidden" name="enabled" value="${group.enabled ? 'false' : 'true'}" />
                         <button type="submit" class="switch ${group.enabled ? 'on' : 'off'}" title="${group.enabled ? 'Disable group' : 'Enable group'}"><span class="switch-knob"></span><span class="sr-only">${group.enabled ? 'Disable group' : 'Enable group'}</span></button>
                       </form>
@@ -321,7 +323,24 @@ function renderBody(
                       </form>
                     </div>
                   </div>
-                  <div class="group-models">${group.models.map((model) => `<span class="chip">${escape(model)}</span>`).join('')}</div>
+                  <div class="group-strategy">${(() => {
+                    const strat = group.strategy ?? 'round-robin'
+                    const stratLabel = strat === 'weighted' ? 'weighted' : strat === 'primary' ? 'primary + fallback' : 'round-robin'
+                    return `<span class="pill" title="Distribution strategy">${escape(stratLabel)}</span>`
+                  })()}</div>
+                  <div class="group-models">${group.models.map((model, idx) => {
+                    const strat = group.strategy ?? 'round-robin'
+                    const w = group.weights?.[idx]
+                    let suffix = ''
+                    if (strat === 'weighted' && typeof w === 'number') {
+                      const total = (group.weights ?? []).reduce((sum, value) => sum + (Number.isFinite(value) && value > 0 ? value : 0), 0)
+                      const pct = total > 0 ? Math.round((w / total) * 100) : 0
+                      suffix = ` <span class="muted" style="font-size:10px;">${pct}%</span>`
+                    } else if (strat === 'primary' && idx === 0) {
+                      suffix = ' <span class="muted" style="font-size:10px;">primary</span>'
+                    }
+                    return `<span class="chip">${escape(model)}${suffix}</span>`
+                  }).join('')}</div>
                 </div>`
               }).join('')}</div>`}
             </div>
@@ -500,10 +519,22 @@ function renderBody(
           <input type="text" name="groupName" id="group-name-field" required pattern="^[a-zA-Z0-9_\\-\\.]+$" title="No spaces. Letters, digits, - _ . only." placeholder="alias-name-no-spaces" />
           <div id="group-name-error" class="field-error"></div>
 
-          <label class="field-label" style="margin-top:10px;">Models in this alias <span class="muted">(round-robin, auto-failover)</span></label>
+          <label class="field-label" style="margin-top:10px;">Distribution strategy</label>
+          <select name="strategy" id="group-strategy-field" style="width:100%;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:inherit;">
+            <option value="round-robin">Round robin — rotate through models, one per request</option>
+            <option value="weighted">Weighted — split traffic by percent (set weights below)</option>
+            <option value="primary">Primary + fallback — always try the first model, fall back on errors</option>
+          </select>
+
+          <label class="field-label" style="margin-top:10px;">Models in this alias <span class="muted">(failover on errors regardless of strategy)</span></label>
           <div class="chips-input-wrap">
             <div class="chips" id="group-chips"></div>
             <input type="hidden" name="groupModels" id="group-models" />
+          </div>
+
+          <div id="group-weights-row" hidden>
+            <label class="field-label" style="margin-top:10px;">Weights <span class="muted">(comma-separated, same order as models — e.g. <span class="kbd">70,20,10</span> for 70/20/10 split)</span></label>
+            <input type="text" name="weights" id="group-weights-field" placeholder="70, 20, 10" autocomplete="off" />
           </div>
 
           <label class="field-label" style="margin-top:8px;">Add model</label>
@@ -888,6 +919,11 @@ const SCRIPT = `
     });
 
     wireGroupModal();
+    const stratField = document.getElementById('group-strategy-field');
+    if (stratField && !stratField._wired) {
+      stratField._wired = true;
+      stratField.addEventListener('change', syncWeightsRow);
+    }
     wireLogs();
   }
 
@@ -948,10 +984,15 @@ const SCRIPT = `
       form.reset();
       document.getElementById('group-id-field').value = '';
       document.getElementById('group-models').value = '';
+      const stratField = document.getElementById('group-strategy-field');
+      if (stratField) stratField.value = 'round-robin';
+      const weightsField = document.getElementById('group-weights-field');
+      if (weightsField) weightsField.value = '';
       document.getElementById('group-modal-title').textContent = 'Add Model Group';
     }
     delete form.dataset.editing;
     renderChips();
+    syncWeightsRow();
     const name = document.getElementById('group-name-field');
     if (name) name.focus();
   }
@@ -1148,8 +1189,20 @@ const SCRIPT = `
     document.getElementById('group-id-field').value = group.id;
     document.getElementById('group-name-field').value = group.name;
     document.getElementById('group-models').value = group.models.join(', ');
+    const stratField = document.getElementById('group-strategy-field');
+    if (stratField) stratField.value = group.strategy || 'round-robin';
+    const weightsField = document.getElementById('group-weights-field');
+    if (weightsField) weightsField.value = (group.weights || []).join(', ');
     form.enabled.checked = !!group.enabled;
     renderChips();
+    syncWeightsRow();
+  }
+
+  function syncWeightsRow() {
+    const stratField = document.getElementById('group-strategy-field');
+    const row = document.getElementById('group-weights-row');
+    if (!stratField || !row) return;
+    row.hidden = stratField.value !== 'weighted';
   }
 
   async function refreshBody() {

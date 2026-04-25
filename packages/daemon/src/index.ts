@@ -628,11 +628,20 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
           const body = await readMutationBody(request)
           let group: ModelGroup
           if ('groupId' in body) {
+            const strategyRaw = String(body.strategy ?? 'round-robin')
+            const strategy: ModelGroup['strategy'] = strategyRaw === 'weighted' || strategyRaw === 'primary' ? strategyRaw : 'round-robin'
+            const weightsRaw = body.weights !== undefined ? String(body.weights) : ''
+            const weights = weightsRaw
+              .split(',')
+              .map((value) => Number.parseFloat(value.trim()))
+              .filter((value) => Number.isFinite(value))
             group = {
               id: String(body.groupId ?? ''),
               name: String(body.groupName ?? ''),
               models: String(body.groupModels ?? '').split(',').map((model) => model.trim()).filter((model) => model.length > 0),
-              enabled: parseBoolean(String(body.enabled ?? 'true'))
+              enabled: parseBoolean(String(body.enabled ?? 'true')),
+              strategy,
+              ...(strategy === 'weighted' && weights.length > 0 ? { weights } : {})
             }
           } else {
             group = body as unknown as ModelGroup

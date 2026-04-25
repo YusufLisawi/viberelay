@@ -10,6 +10,7 @@ import { runServiceCommand } from './commands/service.js'
 import { runStartCommand } from './commands/start.js'
 import { runStatusCommand } from './commands/status.js'
 import { runStopCommand } from './commands/stop.js'
+import { runOpenClawCommand } from './commands/openclaw.js'
 import { runSyncCommand } from './commands/sync.js'
 import { runUpdateCommand } from './commands/update.js'
 import { runUsageCommand, runUsageWatch } from './commands/usage.js'
@@ -44,6 +45,7 @@ Proxy:
   menubar ...        Install/remove the macOS SwiftBar menu-bar plugin (run \`viberelay menubar help\`)
   appindicator ...   Install/remove the GNOME top-bar indicator helper (run \`viberelay appindicator help\`)
   sync <user@host>   Push auth tokens + settings to another machine (run \`viberelay sync help\`)
+  openclaw setup     Wire OpenClaw at viberelay's local proxy (run \`viberelay openclaw help\`)
   profile ... (p)    Manage local Claude profiles (run \`viberelay profile help\`)
   run [-d] <name>    Shortcut for \`viberelay profile run\` (also: \`r\`, \`exec\`)
 
@@ -122,6 +124,9 @@ async function main() {
       return
     case 'sync':
       process.stdout.write(await runSyncCommand({ argv: process.argv.slice(3) }) + '\n')
+      return
+    case 'openclaw':
+      process.stdout.write(await runOpenClawCommand({ argv: process.argv.slice(3), baseUrl }) + '\n')
       return
     case 'profile':
     case 'p':

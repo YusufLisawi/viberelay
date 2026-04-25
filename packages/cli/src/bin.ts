@@ -12,6 +12,7 @@ import { runStatusCommand } from './commands/status.js'
 import { runStopCommand } from './commands/stop.js'
 import { runOpenClawCommand } from './commands/openclaw.js'
 import { runSyncCommand } from './commands/sync.js'
+import { runUseCommand } from './commands/use.js'
 import { runUpdateCommand } from './commands/update.js'
 import { runUsageCommand, runUsageWatch } from './commands/usage.js'
 import { VERSION } from './version.js'
@@ -46,6 +47,7 @@ Proxy:
   appindicator ...   Install/remove the GNOME top-bar indicator helper (run \`viberelay appindicator help\`)
   sync <user@host>   Push auth tokens + settings to another machine (run \`viberelay sync help\`)
   openclaw setup     Wire OpenClaw at viberelay's local proxy (run \`viberelay openclaw help\`)
+  use local|remote   Switch between local daemon and a tunneled remote one (run \`viberelay use help\`)
   profile ... (p)    Manage local Claude profiles (run \`viberelay profile help\`)
   run [-d] <name>    Shortcut for \`viberelay profile run\` (also: \`r\`, \`exec\`)
 
@@ -127,6 +129,9 @@ async function main() {
       return
     case 'openclaw':
       process.stdout.write(await runOpenClawCommand({ argv: process.argv.slice(3), baseUrl }) + '\n')
+      return
+    case 'use':
+      process.stdout.write(await runUseCommand({ argv: process.argv.slice(3), baseUrl }) + '\n')
       return
     case 'profile':
     case 'p':

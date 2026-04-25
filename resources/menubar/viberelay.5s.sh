@@ -25,13 +25,29 @@ if [ -z "${VIBERELAY:-}" ] || [ ! -x "$VIBERELAY" ]; then
 fi
 
 JSON="$("$VIBERELAY" usage --once --json 2>/dev/null || true)"
+ACTIVE_FILE="$HOME/.viberelay/state/active.json"
+ACTIVE_JSON=""
+if [ -r "$ACTIVE_FILE" ]; then
+  ACTIVE_JSON="$(cat "$ACTIVE_FILE" 2>/dev/null || true)"
+fi
 
-python3 - "${JSON:-}" "$VIBERELAY" "$ICON" <<'PY'
+python3 - "${JSON:-}" "$VIBERELAY" "$ICON" "${ACTIVE_JSON:-}" <<'PY'
 import sys, json
 
 raw = sys.argv[1]
 bin_path = sys.argv[2]
 icon = sys.argv[3]
+active_raw = sys.argv[4] if len(sys.argv) > 4 else ""
+
+active = {}
+if active_raw:
+    try:
+        active = json.loads(active_raw) or {}
+    except Exception:
+        active = {}
+
+mode = active.get("mode", "local")
+remote_target = active.get("target") if mode == "remote" else None
 
 def line(text, **attrs):
     if attrs:
@@ -94,7 +110,10 @@ else:
     print(f"{total}{icon}")
 
 print("---")
-line(f"Server: running (port 8327)", color="#9c9")
+if remote_target:
+    line(f"Server: tunneled → {remote_target}", color="#9cf")
+else:
+    line(f"Server: running (port 8327)", color="#9c9")
 if used_samples:
     since = f" since {stats_day}" if stats_day else ""
     line(
@@ -177,5 +196,12 @@ print("---")
 line("Open Dashboard", href="http://127.0.0.1:8327/dashboard")
 line("Restart Server", shell=bin_path, param1="restart", terminal="false", refresh="true")
 line("Stop Server", shell=bin_path, param1="stop", terminal="false", refresh="true")
+print("---")
+if remote_target:
+    line(f"Mode: remote ({remote_target})", color="#9cf", size=11)
+    line("Switch to local", shell=bin_path, param1="use", param2="local", terminal="false", refresh="true")
+else:
+    line("Mode: local", color="#aaa", size=11)
+    line("Switch to remote… (re-run in terminal)", shell=bin_path, param1="use", param2="help", terminal="true", refresh="true")
 line("Refresh", refresh="true")
 PY

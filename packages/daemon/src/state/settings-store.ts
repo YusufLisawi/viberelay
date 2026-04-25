@@ -10,6 +10,7 @@ export interface CustomModelEntry {
 export interface SettingsState {
   providerEnabled: Record<string, boolean>
   accountEnabled: Record<string, boolean>
+  accountLabels: Record<string, string>
   removedAccounts: string[]
   modelGroups: ModelGroup[]
   customModels: CustomModelEntry[]
@@ -24,6 +25,7 @@ export class SettingsStore {
     this.state = {
       providerEnabled: initial.providerEnabled,
       accountEnabled: initial.accountEnabled,
+      accountLabels: initial.accountLabels ?? {},
       removedAccounts: initial.removedAccounts,
       modelGroups: initial.modelGroups,
       customModels: initial.customModels ?? []
@@ -37,6 +39,7 @@ export class SettingsStore {
       this.state = {
         providerEnabled: parsed.providerEnabled ?? this.state.providerEnabled,
         accountEnabled: parsed.accountEnabled ?? {},
+        accountLabels: parsed.accountLabels ?? {},
         removedAccounts: parsed.removedAccounts ?? [],
         modelGroups: parsed.modelGroups ?? this.state.modelGroups,
         customModels: parsed.customModels ?? this.state.customModels ?? []
@@ -69,6 +72,18 @@ export class SettingsStore {
       this.state.removedAccounts.push(accountFile)
     }
     delete this.state.accountEnabled[accountFile]
+    delete this.state.accountLabels[accountFile]
+    await this.save()
+  }
+
+  async setAccountLabel(accountFile: string, label: string) {
+    const trimmed = label.trim()
+    if (trimmed.length === 0) {
+      delete this.state.accountLabels[accountFile]
+    } else {
+      this.state.accountLabels[accountFile] = trimmed
+      this.state.removedAccounts = this.state.removedAccounts.filter((file) => file !== accountFile)
+    }
     await this.save()
   }
 

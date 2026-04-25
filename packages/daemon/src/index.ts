@@ -113,8 +113,10 @@ function buildAccountsSummary(accounts: LocalAuthAccount[], settingsState?: Sett
         active: activeAccounts.length,
         expired: expiredAccounts.length,
         accounts: safeAccounts.map((account) => {
+          const customLabel = settingsState?.accountLabels?.[account.fileName]
           const entry = {
-            display_name: displayNameForAccount(account),
+            display_name: displayNameForAccount(account, customLabel),
+            ...(customLabel ? { custom_label: customLabel } : {}),
             expired: isExpiredAccount(account),
             enabled: settingsState?.accountEnabled[account.fileName] !== false,
             file: account.fileName,
@@ -180,11 +182,11 @@ function buildExtendedUsagePayload(stats: UsageStats, iso8601Fn: (date: Date) =>
   }
 }
 
-function buildAccountLabels(accounts: LocalAuthAccount[]): Record<string, Record<string, string>> {
+function buildAccountLabels(accounts: LocalAuthAccount[], overrides: Record<string, string> = {}): Record<string, Record<string, string>> {
   const labels: Record<string, Record<string, string>> = {}
   for (const account of accounts) {
     const bucket = labels[account.type] ?? (labels[account.type] = {})
-    bucket[account.fileName] = displayNameForAccount(account)
+    bucket[account.fileName] = displayNameForAccount(account, overrides[account.fileName])
   }
   return labels
 }
@@ -334,6 +336,7 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
       settingsStore = new SettingsStore(stateDir, {
         providerEnabled: options.providerEnabled ?? { ...DEFAULT_PROVIDER_ENABLED },
         accountEnabled: {},
+        accountLabels: {},
         removedAccounts: [],
         modelGroups: options.modelGroups ?? DEFAULT_MODEL_GROUPS.map((group) => ({ ...group, models: [...group.models] })),
         customModels: []
@@ -457,7 +460,7 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
           const usageAccounts = await loadVisibleAccounts(authDir, settingsStore?.state)
           const activeByType = await activeAccountsByType(authDir, settingsStore?.state)
           response.writeHead(200, { 'content-type': 'application/json' })
-          response.end(JSON.stringify(buildExtendedUsagePayload(usageStats, iso8601, providerUsageByAccount, buildAccountLabels(usageAccounts), activeByType)))
+          response.end(JSON.stringify(buildExtendedUsagePayload(usageStats, iso8601, providerUsageByAccount, buildAccountLabels(usageAccounts, settingsStore?.state.accountLabels ?? {}), activeByType)))
           return
         }
 
@@ -483,7 +486,7 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
 
         if (request.method === 'GET' && url.pathname === '/relay/settings-state') {
           response.writeHead(200, { 'content-type': 'application/json' })
-          response.end(JSON.stringify(settingsStore?.state ?? { providerEnabled: {}, accountEnabled: {}, removedAccounts: [], modelGroups: [] }))
+          response.end(JSON.stringify(settingsStore?.state ?? { providerEnabled: {}, accountEnabled: {}, accountLabels: {}, removedAccounts: [], modelGroups: [] }))
           return
         }
 
@@ -498,7 +501,7 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
         if (request.method === 'GET' && url.pathname === '/relay/state' && started) {
           const statusPayload = await buildStatusPayload({ ...started, childPid: child?.pid ?? null }, authDir, modelGroupRouter, settingsStore?.state)
           const stateAccounts = await loadVisibleAccounts(authDir, settingsStore?.state)
-          const usagePayload = buildExtendedUsagePayload(usageStats, iso8601, providerUsageByAccount, buildAccountLabels(stateAccounts))
+          const usagePayload = buildExtendedUsagePayload(usageStats, iso8601, providerUsageByAccount, buildAccountLabels(stateAccounts, settingsStore?.state.accountLabels ?? {}))
           const modelsCatalog = buildModelsCatalog(upstreamModels, modelGroupRouter.activeGroupNames(), settingsStore?.state.customModels ?? [])
           response.writeHead(200, { 'content-type': 'application/json' })
           response.end(JSON.stringify({
@@ -506,7 +509,7 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
             usage: usagePayload,
             groups: modelGroupRouter.activeGroupNames(),
             catalog: modelsCatalog,
-            settings: settingsStore?.state ?? { providerEnabled: {}, accountEnabled: {}, removedAccounts: [], modelGroups: [] }
+            settings: settingsStore?.state ?? { providerEnabled: {}, accountEnabled: {}, accountLabels: {}, removedAccounts: [], modelGroups: [] }
           }))
           return
         }
@@ -573,6 +576,21 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
             return
           }
           await settingsStore?.setAccountEnabled(accountFile, parseBoolean(String(body.enabled ?? 'false')))
+          response.writeHead(200, { 'content-type': 'application/json' })
+          response.end(JSON.stringify({ ok: true }))
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/relay/accounts/label') {
+          const body = await readMutationBody(request)
+          const accountFile = String(body.accountFile ?? '')
+          const label = String(body.label ?? '')
+          if (!accountFile) {
+            response.writeHead(400, { 'content-type': 'application/json' })
+            response.end(JSON.stringify({ error: 'accountFile is required' }))
+            return
+          }
+          await settingsStore?.setAccountLabel(accountFile, label)
           response.writeHead(200, { 'content-type': 'application/json' })
           response.end(JSON.stringify({ ok: true }))
           return
@@ -782,7 +800,7 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
         if (request.method === 'GET' && url.pathname === '/dashboard' && started) {
           const status = await buildStatusPayload({ ...started, childPid: child?.pid ?? null }, authDir, modelGroupRouter, settingsStore?.state)
           const dashboardAccounts = await loadVisibleAccounts(authDir, settingsStore?.state)
-          const usage = buildExtendedUsagePayload(usageStats, iso8601, providerUsageByAccount, buildAccountLabels(dashboardAccounts))
+          const usage = buildExtendedUsagePayload(usageStats, iso8601, providerUsageByAccount, buildAccountLabels(dashboardAccounts, settingsStore?.state.accountLabels ?? {}))
           const modelsCatalog = buildModelsCatalog(upstreamModels, modelGroupRouter.activeGroupNames(), settingsStore?.state.customModels ?? [])
           response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store, max-age=0', pragma: 'no-cache' })
           response.end(renderDashboard(status, usage, modelGroupRouter.activeGroupNames(), modelsCatalog, settingsStore?.state))

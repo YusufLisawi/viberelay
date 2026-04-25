@@ -52,7 +52,11 @@ export function isExpiredAccount(account: LocalAuthAccount) {
   return account.expired !== undefined && account.expired.getTime() < Date.now()
 }
 
-export function displayNameForAccount(account: LocalAuthAccount) {
+export function displayNameForAccount(account: LocalAuthAccount, override?: string) {
+  if (override && override.length > 0) {
+    return override
+  }
+
   const base = account.email && account.email.length > 0
     ? account.email
     : account.login && account.login.length > 0
@@ -81,7 +85,7 @@ function dedupeAccounts(accounts: LocalAuthAccount[]): LocalAuthAccount[] {
       passthrough.push(account)
       continue
     }
-    const key = `${account.type}:${account.accountId}`
+    const key = `${account.type}:${account.accountId}:${account.email ?? ''}`
     const existing = byKey.get(key)
     if (!existing) {
       byKey.set(key, account)

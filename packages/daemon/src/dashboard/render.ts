@@ -1,5 +1,6 @@
 export interface DashboardAccountEntry {
   display_name: string
+  custom_label?: string
   expired: boolean
   enabled: boolean
   file: string
@@ -565,7 +566,7 @@ function renderBody(
           </button>
         </div>
         <div class="modal-body">
-          ${providerEntries.length === 0 ? '<p class="empty">No accounts available.</p>' : providerEntries.map(([provider, summary]) => `<section class="provider-group"><div class="provider-head"><div class="provider-title">${providerIcon(provider)}<strong>${escape(provider)}</strong></div><span class="sub">${summary.accounts.length} accounts</span></div><div class="list">${summary.accounts.map((account) => `<div class="row"><div><div>${escape(account.display_name)}</div><div class="muted" style="font-size:11px;">${escape(account.file)}</div></div><form method="post" action="/relay/accounts/remove" data-async data-confirm="Remove ${escape(account.display_name)}?" style="display:inline;"><input type="hidden" name="accountFile" value="${escape(account.file)}" /><button type="submit" class="btn danger">Delete</button></form></div>`).join('')}</div></section>`).join('')}
+          ${providerEntries.length === 0 ? '<p class="empty">No accounts available.</p>' : providerEntries.map(([provider, summary]) => `<section class="provider-group"><div class="provider-head"><div class="provider-title">${providerIcon(provider)}<strong>${escape(provider)}</strong></div><span class="sub">${summary.accounts.length} accounts</span></div><div class="list">${summary.accounts.map((account) => `<div class="row" style="flex-direction:column;align-items:stretch;gap:6px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><div><div>${escape(account.display_name)}</div><div class="muted" style="font-size:11px;">${escape(account.file)}</div></div><form method="post" action="/relay/accounts/remove" data-async data-confirm="Remove ${escape(account.display_name)}?" style="display:inline;"><input type="hidden" name="accountFile" value="${escape(account.file)}" /><button type="submit" class="btn danger">Delete</button></form></div><form method="post" action="/relay/accounts/label" data-async style="display:flex;gap:6px;"><input type="hidden" name="accountFile" value="${escape(account.file)}" /><input type="text" name="label" value="${escape(account.custom_label ?? '')}" placeholder="Custom label (e.g. Acme Team)" style="flex:1;padding:4px 8px;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:inherit;" /><button type="submit" class="btn">Save</button></form></div>`).join('')}</div></section>`).join('')}
         </div>
       </div>
     </div>

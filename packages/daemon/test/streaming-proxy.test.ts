@@ -27,7 +27,7 @@ describe('streaming proxy', () => {
       headers: { 'content-type': 'text/event-stream' }
     }))
 
-    const controller = createDaemonController({ port: 0, upstreamFetch })
+    const controller = createDaemonController({ port: 0, upstreamFetch, providerUsageByAccount: {}, upstreamModels: [] })
     controllers.push(controller)
     const started = await controller.start()
 

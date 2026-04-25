@@ -25,7 +25,7 @@ describe('proxy forwarding', () => {
       }), { status: 200, headers: { 'content-type': 'application/json' } })
     }))
 
-    const controller = createDaemonController({ port: 0, upstreamFetch, providerUsageByAccount: {} })
+    const controller = createDaemonController({ port: 0, upstreamFetch, providerUsageByAccount: {}, upstreamModels: [] })
     controllers.push(controller)
     const started = await controller.start()
 
@@ -53,7 +53,7 @@ describe('proxy forwarding', () => {
         echoed: JSON.parse(String(init?.body))
       }), { status: 200, headers: { 'content-type': 'application/json' } })))
 
-    const controller = createDaemonController({ port: 0, upstreamFetch, providerUsageByAccount: {} })
+    const controller = createDaemonController({ port: 0, upstreamFetch, providerUsageByAccount: {}, upstreamModels: [] })
     controllers.push(controller)
     const started = await controller.start()
 
@@ -83,7 +83,7 @@ describe('proxy forwarding', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'model_not_supported' }), { status: 400, headers: { 'content-type': 'application/json' } }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } }))
 
-    const controller = createDaemonController({ port: 0, upstreamFetch, providerUsageByAccount: {} })
+    const controller = createDaemonController({ port: 0, upstreamFetch, providerUsageByAccount: {}, upstreamModels: [] })
     controllers.push(controller)
     const started = await controller.start()
 

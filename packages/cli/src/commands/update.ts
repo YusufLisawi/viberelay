@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { chmod, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir, platform, arch, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import process from 'node:process'
@@ -200,7 +200,7 @@ async function swapPrefix(payloadDir: string, prefix: string, windows: boolean):
       continue
     }
     await rm(dst, { recursive: true, force: true })
-    await rename(src, dst)
+    await moveAcrossDevices(src, dst)
   }
 
   await ensureExec(prefix)
@@ -216,7 +216,19 @@ async function replaceBinDirWindows(src: string, dst: string): Promise<void> {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
-    await rename(incoming, target)
+    await moveAcrossDevices(incoming, target)
+  }
+}
+
+async function moveAcrossDevices(src: string, dst: string): Promise<void> {
+  try {
+    await rename(src, dst)
+  } catch (error) {
+    // /tmp and the install prefix are often on different mounts on Linux.
+    // Fall back to a recursive copy + cleanup so the update keeps working.
+    if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error
+    await cp(src, dst, { recursive: true, force: true, preserveTimestamps: true })
+    await rm(src, { recursive: true, force: true })
   }
 }
 

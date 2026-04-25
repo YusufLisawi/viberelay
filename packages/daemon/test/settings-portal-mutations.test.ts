@@ -96,7 +96,8 @@ describe('settings portal mutations', () => {
       id: 'g1',
       name: 'high-updated',
       models: ['anthropic/claude-sonnet-4-5', 'openai/gpt-5.4'],
-      enabled: false
+      enabled: false,
+      strategy: 'round-robin'
     })
   })
 

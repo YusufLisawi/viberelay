@@ -52,7 +52,7 @@ export async function runDashboardCommand(options: DashboardCommandOptions) {
   }
 
   const tunnelUrl = `http://127.0.0.1:${remote.localPort}/dashboard`
-  process.stdout.write(`→ tunneling ${remote.target}:${remote.remotePort} → 127.0.0.1:${remote.localPort}\n`)
+  process.stdout.write(`→ tunneling ${remote.target}:${remote.remotePort} → ${tunnelUrl}\n`)
   process.stdout.write('  ssh tunnel running. Ctrl-C to stop.\n')
 
   const child = spawn('ssh', [

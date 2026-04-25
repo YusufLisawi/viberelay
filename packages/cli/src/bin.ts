@@ -40,7 +40,7 @@ Proxy:
   accounts           Account summary per provider
   usage [--once] [--watch] [--interval <ms>]
                      Request counts + 5h/weekly quotas (live refresh in TTY)
-  dashboard          Open the web UI
+  dashboard [user@host]   Open the web UI (local, or SSH-tunnel a remote daemon)
   menubar ...        Install/remove the macOS SwiftBar menu-bar plugin (run \`viberelay menubar help\`)
   appindicator ...   Install/remove the GNOME top-bar indicator helper (run \`viberelay appindicator help\`)
   sync <user@host>   Push auth tokens + settings to another machine (run \`viberelay sync help\`)
@@ -112,7 +112,7 @@ async function main() {
       return
     }
     case 'dashboard':
-      process.stdout.write(await runDashboardCommand({ baseUrl }) + '\n')
+      process.stdout.write(await runDashboardCommand({ baseUrl, argv: process.argv.slice(3) }) + '\n')
       return
     case 'menubar':
       process.stdout.write(await runMenubarCommand({}) + '\n')

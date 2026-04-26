@@ -12,6 +12,7 @@ export interface ProfileEnv {
 export interface ProfileFile {
   env: ProfileEnv
   account?: string
+  claudeArgs?: string[]
 }
 
 export interface SelectChoice {
@@ -47,6 +48,7 @@ interface CreateOptions {
   subagentModel?: string
   account?: string
   force: boolean
+  claudeArgs?: string[]
 }
 
 interface ModelGroupEntry { id: string, name: string, models: string[], enabled: boolean }
@@ -110,9 +112,11 @@ function profileUsage(): string {
     '  edit <name>         (e)          Open profile in $EDITOR',
     '  set <name> [flags]               Patch fields in an existing profile',
     '  delete <name>       (rm)         Remove a profile',
-    '  run [-d] <name>     (r, exec)    Launch claude with profile env (-d = --dangerous)',
+    '  run [-d] <name> [-- ...claude-args]  (r, exec)  Launch claude with profile env',
     '',
     'Top-level shortcut:  viberelay run -d <name>   (== viberelay p r -d <name>)',
+    'Pass-through:        viberelay p r <name> --channels plugin:telegram@...   (forwarded to claude)',
+    'Persistent args:     viberelay p set <name> --claude-arg --channels --claude-arg plugin:telegram@...',
     '',
     'create flags (skip any prompt by passing the value):',
     '  --opus <group>            Model group alias for opus',
@@ -125,6 +129,7 @@ function profileUsage(): string {
     '  --account <account>       CLP-compatible account name for isolation',
     '  --force                   Overwrite existing profile',
     '  --no-interactive          Fail instead of prompting for missing values',
+    '  --claude-arg <value>      Persistent extra arg passed to claude (repeatable; alias: --with)',
     ''
   ].join('\n')
 }
@@ -230,7 +235,8 @@ async function createProfileCommand(
     defaultModel: resolved.defaultModel,
     subagentModel: resolved.subagentModel,
     account: resolved.account,
-    force: resolved.force
+    force: resolved.force,
+    claudeArgs: resolved.claudeArgs
   }
 
   const profile = buildProfile(opts)
@@ -259,6 +265,8 @@ interface ParsedFlags {
   account?: string
   force: boolean
   interactive: boolean
+  claudeArgs?: string[]
+  clearClaudeArgs?: boolean
 }
 
 function parseCreateArgs(args: string[]): { positional: string[], flags: ParsedFlags } {
@@ -286,6 +294,13 @@ function parseCreateArgs(args: string[]): { positional: string[], flags: ParsedF
       case '--force': flags.force = true; break
       case '--no-interactive': flags.interactive = false; break
       case '--interactive': flags.interactive = true; break
+      case '--claude-arg':
+      case '--with': {
+        const value = next()
+        ;(flags.claudeArgs ??= []).push(value)
+        break
+      }
+      case '--clear-claude-args': flags.clearClaudeArgs = true; break
       default:
         if (key.startsWith('--')) {
           throw new Error(`profile create: unknown flag ${key}`)
@@ -307,6 +322,7 @@ interface ResolvedCreate {
   subagentModel?: string
   account?: string
   force: boolean
+  claudeArgs?: string[]
 }
 
 async function resolveFromFlags(context: {
@@ -343,7 +359,8 @@ async function resolveFromFlags(context: {
     defaultModel,
     subagentModel,
     account: flags.account,
-    force
+    force,
+    claudeArgs: flags.claudeArgs
   }
 }
 
@@ -441,6 +458,7 @@ function buildProfile(opts: CreateOptions): ProfileFile {
   if (opts.subagentModel) env.CLAUDE_CODE_SUBAGENT_MODEL = opts.subagentModel
   const profile: ProfileFile = { env }
   if (opts.account) profile.account = opts.account
+  if (opts.claudeArgs && opts.claudeArgs.length > 0) profile.claudeArgs = [...opts.claudeArgs]
   return profile
 }
 
@@ -477,13 +495,14 @@ async function runProfile(
     break
   }
   const name = requireName(args[idx], 'run')
-  const claudeArgs = args.slice(idx + 1)
+  const passthroughArgs = args.slice(idx + 1)
   const profile = await readProfile(profilesDir, name)
   const env: NodeJS.ProcessEnv = { ...process.env, ...profile.env }
   if (profile.account) {
     env.CLP_ACCOUNT = profile.account
     env.CLAUDE_CONFIG_DIR = env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude-accounts', profile.account)
   }
+  const claudeArgs = [...(profile.claudeArgs ?? []), ...passthroughArgs]
   const runner = spawnClaude ?? defaultSpawnClaude
   const code = await runner(env, claudeArgs, dangerous)
   if (code !== 0) {
@@ -539,8 +558,17 @@ async function setProfileFields(profilesDir: string, args: string[]): Promise<st
     changes.push(`account=${flags.account}`)
   }
 
+  if (flags.clearClaudeArgs) {
+    delete profile.claudeArgs
+    changes.push('claude_args=(cleared)')
+  }
+  if (flags.claudeArgs && flags.claudeArgs.length > 0) {
+    profile.claudeArgs = [...(profile.claudeArgs ?? []), ...flags.claudeArgs]
+    changes.push(`claude_args+=${flags.claudeArgs.join(' ')}`)
+  }
+
   if (changes.length === 0) {
-    throw new Error('profile set: no fields provided (use --opus, --sonnet, --haiku, --base-url, --token, --default-model, --subagent-model, --account)')
+    throw new Error('profile set: no fields provided (use --opus, --sonnet, --haiku, --base-url, --token, --default-model, --subagent-model, --account, --claude-arg, --clear-claude-args)')
   }
 
   const file = profilePath(profilesDir, name)

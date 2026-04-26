@@ -102,7 +102,7 @@ async function waitForPort(port: number, openExpected: boolean, timeoutMs = 10_0
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(`http://127.0.0.1:${port}/healthz`)
+      const res = await fetch(`http://127.0.0.1:${port}/health`)
       if (res.ok) {
         if (openExpected) return true
       } else if (!openExpected) return true

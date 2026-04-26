@@ -209,12 +209,15 @@ function isSafeOrigin(request: import('node:http').IncomingMessage, expectedHost
   if (!origin || (Array.isArray(origin) && origin.length === 0)) return true
   const value = Array.isArray(origin) ? origin[0] : origin
   if (!value) return true
-  const allowed = new Set([
-    `http://${expectedHost}:${expectedPort}`,
-    `http://127.0.0.1:${expectedPort}`,
-    `http://localhost:${expectedPort}`
-  ])
-  return allowed.has(value)
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
+    const loopback = url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '::1'
+    if (loopback) return true
+    return url.hostname === expectedHost && Number(url.port) === expectedPort
+  } catch {
+    return false
+  }
 }
 
 function rejectForbiddenOrigin(response: import('node:http').ServerResponse): void {

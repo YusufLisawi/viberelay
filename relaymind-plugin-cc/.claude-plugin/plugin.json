@@ -1,0 +1,12 @@
+{
+  "name": "vibemind-relaymind",
+  "description": "RelayMind — persistent Telegram-connected Claude Code assistant. Ships skills, hooks, and context files that bind Claude Code to the viberelay relaymind CLI for memory, checkpoints, daily summaries, and self-healing.",
+  "version": "0.0.1",
+  "keywords": [
+    "relaymind",
+    "vibemind",
+    "memory",
+    "telegram",
+    "persistent-assistant"
+  ]
+}

@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "bin": {
-    "viberelay": "./src/bin.ts"
+    "viberelay": "./src/bin.ts",
+    "relaymind": "./src/relaymind-bin.ts"
   },
   "exports": {
     ".": "./src/index.ts"

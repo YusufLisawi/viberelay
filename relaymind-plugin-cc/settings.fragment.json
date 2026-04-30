@@ -1,0 +1,64 @@
+{
+  "_comment": "Merged into .relaymind/claude-home/.claude/settings.json by the RelayMind installer. ${CLAUDE_PLUGIN_ROOT} is expanded by Claude Code to the absolute path of this plugin's directory; if the runtime does not expand it, the installer must substitute it before write. All hooks shell out via `bash <script>` so the file mode does not strictly need to be 0755 — though the installer still chmods 0755 for ergonomics.",
+  "permissions": {
+    "allow": [
+      "Bash(viberelay relaymind *)",
+      "Bash(viberelay telegram *)",
+      "Bash(viberelay status*)",
+      "Bash(viberelay usage*)",
+      "Read(./**)",
+      "Write(./**)",
+      "Plugin:vibemind-telegram@vibemind-local",
+      "Plugin:vibemind-relaymind@vibemind-local"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(sudo *)"
+    ]
+  },
+  "env": {
+    "VIBERELAY_RELAYMIND_PROFILE": "1"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-submit.sh"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/stop.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

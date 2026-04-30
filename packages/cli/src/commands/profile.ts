@@ -495,7 +495,12 @@ async function runProfile(
     break
   }
   const name = requireName(args[idx], 'run')
-  const passthroughArgs = args.slice(idx + 1)
+  // Strip a single leading `--` if present. Some callers (notably the
+  // RelayMind supervisor) include it as a separator between profile-runner
+  // flags and claude flags. Without this, the `--` reaches claude where it
+  // means "end of options" and turns every following flag into prompt text.
+  const rawPassthrough = args.slice(idx + 1)
+  const passthroughArgs = rawPassthrough[0] === '--' ? rawPassthrough.slice(1) : rawPassthrough
   const profile = await readProfile(profilesDir, name)
   const env: NodeJS.ProcessEnv = { ...process.env, ...profile.env }
   if (profile.account) {

@@ -1,0 +1,52 @@
+{
+  "commands": [
+    {
+      "name": "start",
+      "description": "Welcome and setup guide",
+      "mode": "direct",
+      "handler": "start"
+    },
+    {
+      "name": "help",
+      "description": "What this bot can do",
+      "mode": "direct",
+      "handler": "help"
+    },
+    {
+      "name": "status",
+      "description": "Check your pairing status",
+      "mode": "direct",
+      "handler": "status"
+    },
+    {
+      "name": "commands",
+      "description": "List available commands",
+      "mode": "direct",
+      "handler": "commands"
+    },
+    {
+      "name": "usage",
+      "description": "Show viberelay usage",
+      "mode": "direct",
+      "handler": "usage"
+    },
+    {
+      "name": "fix",
+      "description": "Investigate and fix an issue",
+      "mode": "llm",
+      "template": "You are handling the /fix command.\nInvestigate the issue below and make the smallest correct change.\n\nUser request:\n{{args}}"
+    },
+    {
+      "name": "build",
+      "description": "Plan or implement a feature",
+      "mode": "llm",
+      "template": "You are handling the /build command.\nDesign and implement the requested feature with minimal, correct changes.\n\nUser request:\n{{args}}"
+    },
+    {
+      "name": "daily",
+      "description": "Prepare a daily summary",
+      "mode": "llm",
+      "template": "You are handling the /daily command.\nSummarize the current work, decisions, and next steps.\n\nUser context:\n{{args}}"
+    }
+  ]
+}

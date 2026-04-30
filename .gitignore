@@ -12,3 +12,6 @@ resources/cli-proxy-api
 resources/cli-proxy-api.exe
 resources/CLIPROXY_VERSION
 .snapshots/
+
+# RelayMind runtime profile state (sqlite DB, supervisor state, personal memory)
+.relaymind/

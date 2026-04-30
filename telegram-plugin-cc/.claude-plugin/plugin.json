@@ -1,0 +1,11 @@
+{
+  "name": "vibemind-telegram",
+  "description": "VibeMind Telegram channel for Claude Code — local editable Telegram bridge with registry-driven slash commands.",
+  "version": "0.0.1",
+  "keywords": [
+    "telegram",
+    "messaging",
+    "channel",
+    "vibemind"
+  ]
+}

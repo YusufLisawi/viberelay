@@ -70,8 +70,57 @@ jobs:
           name: viberelay-${{ matrix.target }}
           path: dist/archives/viberelay-${{ matrix.target }}.${{ matrix.archive_ext }}
 
+  # ── relaymind standalone binary (nightly) ────────────────────────────────────
+  # Windows excluded — relaymind is darwin/linux only.
+  # darwin-x64 skipped to match the viberelay nightly strategy above.
+  build-relaymind:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            target: bun-darwin-arm64
+          - runner: ubuntu-latest
+            target: bun-linux-x64
+          - runner: ubuntu-24.04-arm
+            target: bun-linux-arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install deps
+        run: bun install --frozen-lockfile
+
+      - name: Stamp nightly version
+        shell: bash
+        run: |
+          export SHA=$(git rev-parse --short HEAD)
+          export STAMP=$(date -u +%Y%m%d%H%M)
+          node -e "const fs=require('fs');const p=require('./package.json');p.version=p.version+'-nightly.'+process.env.STAMP+'.'+process.env.SHA;fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
+
+      - name: Typecheck + test
+        run: bun run typecheck && bunx vitest run
+
+      - name: Compile relaymind binary
+        run: bun run scripts/build.ts --target ${{ matrix.target }}
+
+      - name: Package relaymind archive
+        run: bun scripts/package-relaymind.ts --target ${{ matrix.target }}
+
+      - name: Smoke test relaymind package
+        run: bun scripts/test-package-relaymind.ts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: relaymind-${{ matrix.target }}
+          path: dist/archives/relaymind-${{ matrix.target }}.tar.gz
+
   publish:
-    needs: build
+    needs: [build, build-relaymind]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -86,6 +135,7 @@ jobs:
           find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} release/ \;
           cp install.sh release/install.sh
           cp install.ps1 release/install.ps1
+          cp install-relaymind.sh release/install-relaymind.sh
 
       - name: Move rolling tag
         run: |

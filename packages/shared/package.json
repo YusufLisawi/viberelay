@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/contracts.ts"
+    ".": "./src/contracts.ts",
+    "./relaymind": "./src/relaymind/index.ts"
   }
 }

@@ -34,6 +34,9 @@ interface Artifact {
 const ARTIFACTS: Artifact[] = [
   { name: 'viberelay', entry: 'packages/cli/src/bin.ts' },
   { name: 'viberelay-daemon', entry: 'packages/daemon/src/runner.ts' }
+  // Note: there is no separate `relaymind` artifact. The same `viberelay`
+  // binary is renamed to `relaymind` by scripts/package-relaymind.ts and
+  // routed via basename detection inside bin.ts.
 ]
 
 function parseArgs(argv: string[]): { targets: Target[] } {

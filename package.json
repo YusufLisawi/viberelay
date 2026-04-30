@@ -1,6 +1,6 @@
 {
   "name": "viberelay",
-  "version": "0.1.22",
+  "version": "0.1.23",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -13,7 +13,10 @@
     "lint": "bunx tsc --noEmit -p tsconfig.base.json",
     "build": "bun scripts/build.ts",
     "build:all": "bun scripts/build.ts --all",
+    "build:relaymind": "bun scripts/build.ts --target bun-darwin-arm64 && bun scripts/package-relaymind.ts --target bun-darwin-arm64",
     "package": "bun scripts/package-release.ts",
+    "package:relaymind": "bun scripts/package-relaymind.ts",
+    "test:package:relaymind": "bun scripts/test-package-relaymind.ts",
     "cliproxy:fetch": "bun scripts/fetch-cliproxy.ts"
   },
   "devDependencies": {

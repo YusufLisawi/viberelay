@@ -51,6 +51,21 @@ export async function pollProviderUsage(authDir: string, fetchImpl: typeof fetch
   return result
 }
 
+export async function refreshAccountUsage(authDir: string, fileName: string, fetchImpl: typeof fetch = fetch): Promise<{ provider: 'claude' | 'codex', window: UsageWindow } | undefined> {
+  const accounts = await loadAccountsWithTokens(authDir)
+  const account = accounts.find((entry) => entry.fileName === fileName)
+  if (!account) return undefined
+  try {
+    const window = account.type === 'claude'
+      ? await fetchClaude(account, fetchImpl)
+      : await fetchCodex(account, fetchImpl)
+    if (!window) return { provider: account.type, window: { status: 'no_data' } }
+    return { provider: account.type, window }
+  } catch (error) {
+    return { provider: account.type, window: { status: `error:${(error as Error).message ?? 'unknown'}` } }
+  }
+}
+
 async function loadAccountsWithTokens(authDir: string): Promise<AccountRef[]> {
   let names: string[] = []
   try { names = await readdir(authDir) } catch { return [] }

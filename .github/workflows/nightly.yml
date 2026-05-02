@@ -57,7 +57,7 @@ jobs:
           node -e "const fs=require('fs');const p=require('./package.json');p.version=p.version+'-nightly.'+process.env.STAMP+'.'+process.env.SHA;fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
 
       - name: Typecheck + test
-        run: bun run typecheck && bunx vitest run
+        run: bun run typecheck && bunx vitest run && bun test packages/cli/test/relaymind-*.test.ts
 
       - name: Compile
         run: bun run scripts/build.ts --target ${{ matrix.target }}
@@ -103,7 +103,7 @@ jobs:
           node -e "const fs=require('fs');const p=require('./package.json');p.version=p.version+'-nightly.'+process.env.STAMP+'.'+process.env.SHA;fs.writeFileSync('./package.json',JSON.stringify(p,null,2)+'\n')"
 
       - name: Typecheck + test
-        run: bun run typecheck && bunx vitest run
+        run: bun run typecheck && bunx vitest run && bun test packages/cli/test/relaymind-*.test.ts
 
       - name: Compile relaymind binary
         run: bun run scripts/build.ts --target ${{ matrix.target }}

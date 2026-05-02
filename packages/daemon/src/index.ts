@@ -26,7 +26,7 @@ import {
 import { SettingsStore } from './state/settings-store.js'
 import { LogBuffer } from './runtime/log-buffer.js'
 import { DEFAULT_MODEL_GROUPS, DEFAULT_PROVIDER_ENABLED, REMOVED_PROVIDERS, LOCKED_MODEL_GROUP_NAMES } from './state/defaults.js'
-import { pollProviderUsage } from './usage/provider-usage.js'
+import { pollProviderUsage, refreshAccountUsage } from './usage/provider-usage.js'
 import { iso8601 } from './runtime/time.js'
 
 export interface ProviderUsageWindow {
@@ -581,6 +581,30 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
           await settingsStore?.setAccountEnabled(accountFile, parseBoolean(String(body.enabled ?? 'false')))
           response.writeHead(200, { 'content-type': 'application/json' })
           response.end(JSON.stringify({ ok: true }))
+          return
+        }
+
+        if (request.method === 'POST' && url.pathname === '/relay/accounts/refresh-usage') {
+          const body = await readMutationBody(request)
+          const accountFile = String(body.accountFile ?? '').trim()
+          if (!accountFile) {
+            // Refresh all accounts when no file specified
+            await runUsagePoll(true)
+            response.writeHead(200, { 'content-type': 'application/json' })
+            response.end(JSON.stringify({ ok: true, refreshed: 'all' }))
+            return
+          }
+          const result = await refreshAccountUsage(authDir, accountFile, upstreamFetch)
+          if (!result) {
+            response.writeHead(404, { 'content-type': 'application/json' })
+            response.end(JSON.stringify({ ok: false, message: 'account not found or missing access token' }))
+            return
+          }
+          providerUsageByAccount[result.provider] = providerUsageByAccount[result.provider] ?? {}
+          providerUsageByAccount[result.provider][accountFile] = result.window
+          providerUsageFetchedAt = Date.now()
+          response.writeHead(200, { 'content-type': 'application/json' })
+          response.end(JSON.stringify({ ok: true, provider: result.provider, window: result.window }))
           return
         }
 

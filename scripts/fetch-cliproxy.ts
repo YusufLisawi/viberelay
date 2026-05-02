@@ -23,9 +23,9 @@ const UPSTREAM_REPO = 'router-for-me/CLIProxyAPI'
 
 const TARGET_MAP: Record<string, { goos: string, goarch: string, ext: 'tar.gz' | 'zip', binaryName: string }> = {
   'bun-darwin-x64':   { goos: 'darwin',  goarch: 'amd64', ext: 'tar.gz', binaryName: 'cli-proxy-api' },
-  'bun-darwin-arm64': { goos: 'darwin',  goarch: 'arm64', ext: 'tar.gz', binaryName: 'cli-proxy-api' },
+  'bun-darwin-arm64': { goos: 'darwin',  goarch: 'aarch64', ext: 'tar.gz', binaryName: 'cli-proxy-api' },
   'bun-linux-x64':    { goos: 'linux',   goarch: 'amd64', ext: 'tar.gz', binaryName: 'cli-proxy-api' },
-  'bun-linux-arm64':  { goos: 'linux',   goarch: 'arm64', ext: 'tar.gz', binaryName: 'cli-proxy-api' },
+  'bun-linux-arm64':  { goos: 'linux',   goarch: 'aarch64', ext: 'tar.gz', binaryName: 'cli-proxy-api' },
   'bun-windows-x64':  { goos: 'windows', goarch: 'amd64', ext: 'zip',    binaryName: 'cli-proxy-api.exe' }
 }
 

@@ -246,6 +246,12 @@ function renderBody(
                         </div>
                         <div class="account-controls">
                           <span class="pill" title="Requests routed via this account">${accountHits} req</span>
+                          <form method="post" action="/relay/accounts/refresh-usage" data-async style="display:inline;">
+                            <input type="hidden" name="accountFile" value="${escape(account.file)}" />
+                            <button type="submit" class="icon-btn" title="Refresh usage data" aria-label="Refresh usage">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                            </button>
+                          </form>
                           <form method="post" action="/relay/accounts/toggle" data-async class="switch-form">
                             <input type="hidden" name="accountFile" value="${escape(account.file)}" />
                             <input type="hidden" name="enabled" value="${account.enabled ? 'false' : 'true'}" />

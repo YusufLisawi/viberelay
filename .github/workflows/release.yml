@@ -98,7 +98,7 @@ jobs:
         run: bun run typecheck
 
       - name: Test
-        run: bunx vitest run && bun test packages/cli/test/relaymind-*.test.ts
+        run: bun test packages/cli/test/relaymind-*.test.ts
 
       - name: Compile relaymind binary
         run: bun run scripts/build.ts --target ${{ matrix.target }}

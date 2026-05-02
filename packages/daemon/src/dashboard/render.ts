@@ -266,6 +266,15 @@ function renderBody(
                         const weeklyUsed = accUsage.secondaryUsedPercent
                         const weeklyLeft = typeof weeklyUsed === 'number' ? Math.max(0, Math.min(100, 100 - weeklyUsed)) : undefined
                         const weeklyTone = weeklyLeft === undefined ? 'muted' : weeklyLeft <= 10 ? 'danger' : weeklyLeft <= 30 ? 'warn' : 'ok'
+                        const statusNote = (() => {
+                          if (remaining !== undefined || weeklyLeft !== undefined) return ''
+                          const s = accUsage.status ?? ''
+                          if (s === 'invalid_credentials') return 'auth expired — re-login'
+                          if (s.startsWith('error:http_402')) return 'no active plan (402)'
+                          if (s.startsWith('error:http_')) return s.replace('error:http_', 'http ')
+                          if (s === 'no_data' || s === 'loaded') return 'no usage data yet — make a request'
+                          return s || 'no data'
+                        })()
                         return `<div class="account-metrics">
                           <div class="metric-row">
                             <span class="metric-key">5h</span>
@@ -279,6 +288,7 @@ function renderBody(
                             <span class="metric-val ${weeklyTone}">${weeklyLeft !== undefined ? `${weeklyLeft}% left` : '—'}</span>
                             <span class="metric-reset muted">resets in ${formatReset(accUsage.secondaryResetSeconds)}</span>
                           </div>
+                          ${statusNote ? `<div class="metric-row"><span class="metric-key muted">status</span><span class="metric-val muted" style="font-size:11px;">${escape(statusNote)}</span></div>` : ''}
                         </div>`
                       })() : ''}
                     </div>`
@@ -896,7 +906,27 @@ const SCRIPT = `
         try {
           const res = await fetch(form.action, { method: form.method || 'POST', body, headers: { 'content-type': 'application/x-www-form-urlencoded' } });
           if (!res.ok) throw new Error(res.status + '');
-          showToast('Saved', 'ok');
+          let toastMsg = 'Saved';
+          if (form.action.endsWith('/relay/accounts/refresh-usage')) {
+            try {
+              const data = await res.clone().json();
+              if (data && data.window) {
+                const w = data.window;
+                if (typeof w.primaryUsedPercent === 'number') {
+                  toastMsg = 'Refreshed: ' + Math.max(0, Math.min(100, 100 - w.primaryUsedPercent)) + '% left (5h)';
+                } else if (w.status === 'invalid_credentials') {
+                  toastMsg = 'Refreshed: auth expired — re-login';
+                } else if (w.status && w.status.startsWith('error:http_')) {
+                  toastMsg = 'Refreshed: ' + w.status.replace('error:http_', 'HTTP ');
+                } else {
+                  toastMsg = 'Refreshed: no usage data';
+                }
+              } else {
+                toastMsg = 'Refreshed all accounts';
+              }
+            } catch (_) { toastMsg = 'Refreshed'; }
+          }
+          showToast(toastMsg, 'ok');
           if (form.dataset.keepModal !== undefined) {
             const modal = form.closest('.modal');
             if (modal) closeModal(modal);

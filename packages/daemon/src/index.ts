@@ -2,7 +2,7 @@ import { spawn, type ChildProcessByStdio } from 'node:child_process'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { access, mkdir, readFile as readFileBuffer, unlink, writeFile as writeFileBuffer } from 'node:fs/promises'
-import { constants as fsConstants } from 'node:fs'
+import { constants as fsConstants, watch as fsWatch, type FSWatcher } from 'node:fs'
 import { dirname, resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Readable } from 'node:stream'
@@ -307,6 +307,7 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
       const next = await pollProviderUsage(authDir, upstreamFetch)
       providerUsageByAccount = next
       providerUsageFetchedAt = Date.now()
+      await syncAccountsFromDisk()
     } catch {
       // ignore
     }
@@ -325,7 +326,80 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
   let started: StartedDaemon | null = null
   let settingsStore: SettingsStore | null = null
   let modelGroupRouter = new ModelGroupRouter()
+  let authWatcher: FSWatcher | null = null
+  let syncInFlight: Promise<void> | null = null
+  let syncDebounce: NodeJS.Timeout | null = null
   const logBuffer = new LogBuffer(200)
+
+  const syncAccountsFromDisk = async () => {
+    // When the caller injects `providerUsageByAccount` (tests, fixtures), the
+    // disk is not the source of truth — leave the in-memory state alone.
+    // Mirrors the same guard in `runUsagePoll` above.
+    if (options.providerUsageByAccount !== undefined) return
+    if (syncInFlight) return syncInFlight
+    syncInFlight = (async () => {
+      try {
+        const onDisk = await loadAuthAccounts(authDir)
+        // Empty result is ambiguous (no auth files yet vs. authDir missing),
+        // so skip the wipe and let the next poll converge once real entries
+        // appear. Avoids deleting in-memory state injected via
+        // `providerUsageByAccount` (tests, seeded fixtures, first boot).
+        if (onDisk.length === 0) return
+        const presentFiles = new Set(onDisk.map((account) => account.fileName))
+
+        for (const provider of Object.keys(providerUsageByAccount)) {
+          for (const file of Object.keys(providerUsageByAccount[provider] ?? {})) {
+            if (!presentFiles.has(file)) delete providerUsageByAccount[provider][file]
+          }
+          if (Object.keys(providerUsageByAccount[provider]).length === 0) {
+            delete providerUsageByAccount[provider]
+          }
+        }
+
+        for (const provider of Object.keys(usageStats.accountCounts)) {
+          for (const file of Object.keys(usageStats.accountCounts[provider] ?? {})) {
+            if (!presentFiles.has(file)) delete usageStats.accountCounts[provider][file]
+          }
+          if (Object.keys(usageStats.accountCounts[provider]).length === 0) {
+            delete usageStats.accountCounts[provider]
+          }
+        }
+        if (usageStats.lastAccount && !presentFiles.has(usageStats.lastAccount)) {
+          usageStats.lastAccount = undefined
+        }
+
+        if (settingsStore) {
+          let dirty = false
+          for (const file of Object.keys(settingsStore.state.accountEnabled)) {
+            if (!presentFiles.has(file)) { delete settingsStore.state.accountEnabled[file]; dirty = true }
+          }
+          for (const file of Object.keys(settingsStore.state.accountLabels)) {
+            if (!presentFiles.has(file)) { delete settingsStore.state.accountLabels[file]; dirty = true }
+          }
+          const filteredRemoved = settingsStore.state.removedAccounts.filter((file) => presentFiles.has(file))
+          if (filteredRemoved.length !== settingsStore.state.removedAccounts.length) {
+            settingsStore.state.removedAccounts = filteredRemoved
+            dirty = true
+          }
+          if (dirty) await settingsStore.save()
+        }
+      } catch {
+        // ignore — best-effort sync
+      } finally {
+        syncInFlight = null
+      }
+    })()
+    return syncInFlight
+  }
+
+  const scheduleSync = () => {
+    if (syncDebounce) return
+    syncDebounce = setTimeout(() => {
+      syncDebounce = null
+      void syncAccountsFromDisk()
+    }, 250)
+    syncDebounce.unref?.()
+  }
   const defaultIconsDir = resolve(installRoot, 'resources/icons')
   const iconsDir = options.iconsDir ?? defaultIconsDir
 
@@ -384,6 +458,18 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
       if (options.providerUsageByAccount === undefined) {
         setTimeout(() => void runUsagePoll(true), 2000)
         setInterval(() => void runUsagePoll(), 15 * 60 * 1000).unref()
+      }
+
+      try {
+        await mkdir(authDir, { recursive: true })
+        await syncAccountsFromDisk()
+        authWatcher = fsWatch(authDir, { persistent: false }, (_event, filename) => {
+          if (!filename || !String(filename).endsWith('.json')) return
+          scheduleSync()
+        })
+        authWatcher.on('error', () => { /* watcher errors are non-fatal */ })
+      } catch {
+        // watcher unsupported on this platform — periodic poll still keeps things in sync
       }
 
       if (options.upstreamModels === undefined) {
@@ -587,6 +673,7 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
         if (request.method === 'POST' && url.pathname === '/relay/accounts/refresh-usage') {
           const body = await readMutationBody(request)
           const accountFile = String(body.accountFile ?? '').trim()
+          await syncAccountsFromDisk()
           if (!accountFile) {
             // Refresh all accounts when no file specified
             await runUsagePoll(true)
@@ -932,6 +1019,12 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
       server = null
       child = null
       started = null
+
+      if (authWatcher) {
+        try { authWatcher.close() } catch { /* already closed */ }
+        authWatcher = null
+      }
+      if (syncDebounce) { clearTimeout(syncDebounce); syncDebounce = null }
 
       if (activeChild && activeChild.exitCode === null && activeChild.signalCode === null) {
         await new Promise<void>((resolvePromise) => {

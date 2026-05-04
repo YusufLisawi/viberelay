@@ -513,7 +513,7 @@ async function runProfile(
   if (code !== 0) {
     throw new Error(`claude exited with code ${code}`)
   }
-  return `profile ${name} session ended`
+  return ''
 }
 
 async function editProfile(

@@ -175,14 +175,18 @@ async function main() {
       return
     case 'profile':
     case 'p':
-      process.stdout.write(await runProfileCommand({ baseUrl }) + '\n')
+      {
+        const out = await runProfileCommand({ baseUrl })
+        if (out) process.stdout.write(out + '\n')
+      }
       return
     case 'run':
     case 'r':
     case 'exec': {
       // Top-level shortcut: `viberelay run [-d] <name>` == `viberelay profile run ...`
       const argv = ['run', ...process.argv.slice(3)]
-      process.stdout.write(await runProfileCommand({ baseUrl, argv }) + '\n')
+      const out = await runProfileCommand({ baseUrl, argv })
+      if (out) process.stdout.write(out + '\n')
       return
     }
     case 'update': {

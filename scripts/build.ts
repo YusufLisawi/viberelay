@@ -9,12 +9,13 @@
  * Outputs to ./dist/<target>/{viberelay,viberelay-daemon}[.exe]
  */
 
-import { mkdir, rm } from 'node:fs/promises'
+import { copyFile, mkdir, readdir, rm, stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { $ } from 'bun'
 
 const REPO_ROOT = resolve(import.meta.dir, '..')
 const DIST_DIR = join(REPO_ROOT, 'dist')
+const RESOURCES_DIR = join(REPO_ROOT, 'resources')
 
 const TARGETS = [
   'bun-darwin-x64',
@@ -54,6 +55,35 @@ function parseArgs(argv: string[]): { targets: Target[] } {
   return { targets: ['host'] }
 }
 
+async function copyDir(src: string, dst: string): Promise<void> {
+  await mkdir(dst, { recursive: true })
+  for (const entry of await readdir(src)) {
+    const srcPath = join(src, entry)
+    const dstPath = join(dst, entry)
+    const info = await stat(srcPath)
+    if (info.isDirectory()) {
+      await copyDir(srcPath, dstPath)
+    } else {
+      await copyFile(srcPath, dstPath)
+    }
+  }
+}
+
+/**
+ * Stage runtime resources (the cli-proxy-api child, config.yaml, icons,
+ * static dashboard assets) next to the compiled binaries.
+ *
+ * A compiled daemon anchors `bundledBinaryPath` on `resolve(dirname(execPath),
+ * '..')` — i.e. `dist/` when running `dist/host/viberelay-daemon`. Without this
+ * copy the daemon crashes on start with `ENOENT … dist/resources/cli-proxy-api`.
+ * (Release archives stage resources per-payload in package-release.ts; this
+ * keeps a plain local `bun run build` runnable too.)
+ */
+async function stageResources(): Promise<void> {
+  console.log('→ staging resources → dist/resources')
+  await copyDir(RESOURCES_DIR, join(DIST_DIR, 'resources'))
+}
+
 async function build(target: Target): Promise<void> {
   const outDir = join(DIST_DIR, target === 'host' ? 'host' : target)
   await mkdir(outDir, { recursive: true })
@@ -74,6 +104,7 @@ async function main(): Promise<void> {
   for (const target of targets) {
     await build(target)
   }
+  await stageResources()
   console.log(`✓ built ${targets.join(', ')} → ${DIST_DIR}`)
 }
 

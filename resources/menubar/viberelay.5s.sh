@@ -81,6 +81,7 @@ labels = data.get("account_labels", {}) or {}
 accs = data.get("account_counts", {}) or {}
 next_by_provider = data.get("next_account_by_provider", {}) or {}
 last_group = data.get("last_group")
+last_requested_model = data.get("last_requested_model")
 last_model = data.get("last_model")
 last_at = data.get("last_at")
 stats_day = data.get("stats_day")
@@ -133,9 +134,9 @@ else:
     since = f" since {stats_day}" if stats_day else ""
     line(f"{total} req today{since}", color="#aaa", size=11)
 
-if last_group or last_model:
+if last_group or last_requested_model or last_model:
     lg = last_group or "—"
-    lm = last_model or "—"
+    lm = last_requested_model or last_model or "—"
     line(f"Last: {lg} → {lm}", size=11, font="Menlo")
 print("---")
 

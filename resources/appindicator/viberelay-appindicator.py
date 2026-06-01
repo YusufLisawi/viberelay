@@ -85,6 +85,7 @@ def format_summary(payload: dict) -> tuple[str, str, str, list[dict], str]:
     account_counts = payload.get('account_counts', {}) or {}
     total = int(payload.get('total_requests', 0) or 0)
     last_group = payload.get('last_group') or '—'
+    last_requested_model = payload.get('last_requested_model')
     last_model = payload.get('last_model') or '—'
     stats_day = payload.get('stats_day')
 
@@ -138,7 +139,7 @@ def format_summary(payload: dict) -> tuple[str, str, str, list[dict], str]:
         lines.append(f'Stats day: {stats_day}')
     if worst_label and worst_window:
         lines.append(f'Tightest: {worst_label} ({worst_window}, {int(round(worst_remaining))}% left)')
-    lines.append(f'Last route: {last_group} → {last_model}')
+    lines.append(f"Last route: {last_group} → {last_requested_model or last_model}")
     lines.append('')
 
     provider_order = sorted(provider_counts.keys(), key=lambda key: -provider_counts[key])

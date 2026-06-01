@@ -155,6 +155,7 @@ viberelay profile run -d vibe --print "Say OK"
 | `viberelay profile set <name> ...` | Patch profile fields |
 | `viberelay profile delete <name>` | Delete profile |
 | `viberelay profile run <name> [claude args...]` | Launch Claude with profile env |
+| `cursor/<model>` model IDs | Route compatible client requests through local Cursor Agent login |
 | `viberelay update` | Self-update to latest stable |
 | `viberelay update --check` | Check for update only |
 | `viberelay update --channel nightly` | Update to rolling nightly |
@@ -954,6 +955,20 @@ viberelay dashboard user@host --ssh-port 2222 --remote-port 8327 --local-port 18
 ```
 
 Foreground command — opens browser, blocks on the SSH tunnel, Ctrl-C closes it. Independent from `use remote`.
+
+---
+
+## Cursor upstream
+
+Use Cursor as an upstream from any OpenAI/Anthropic-compatible client by prefixing a Cursor-native model with `cursor/`.
+
+```bash
+curl http://127.0.0.1:8327/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -d '{"model":"cursor/claude-opus-4-7-high","messages":[{"role":"user","content":"say hi"}]}'
+```
+
+The daemon invokes your local `cursor-agent --print` login and translates the result back to the client. Use Cursor-native model IDs after `cursor/`; viberelay group aliases are not expanded inside Cursor. This is a best-effort local adapter: no streaming, no tool-call fidelity, and no raw Cursor protocol compatibility.
 
 ---
 

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -9,15 +9,27 @@ import self from '../src/commands/relaymind/self.js'
 
 let workspace: string
 let originalCwd: string
+let originalPath: string | undefined
 
 beforeEach(async () => {
   originalCwd = process.cwd()
+  originalPath = process.env.PATH
   workspace = await mkdtemp(join(tmpdir(), 'relaymind-self-'))
   process.chdir(workspace)
+  const binDir = join(workspace, 'bin')
+  await mkdir(binDir, { recursive: true })
+  for (const bin of ['tmux', 'claude']) {
+    const binPath = join(binDir, bin)
+    await writeFile(binPath, '#!/bin/sh\necho "$0 test-version"\n', 'utf8')
+    await chmod(binPath, 0o755)
+  }
+  process.env.PATH = `${binDir}:${originalPath ?? ''}`
 })
 
 afterEach(async () => {
   process.chdir(originalCwd)
+  if (originalPath === undefined) delete process.env.PATH
+  else process.env.PATH = originalPath
   await rm(workspace, { recursive: true, force: true })
 })
 

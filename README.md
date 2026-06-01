@@ -8,6 +8,7 @@ Multi-provider Claude API proxy. Point `claude` at it, share one pool of Claude 
 - **Profile system** — per-workspace JSON profiles that wire `claude` to the proxy with your chosen group aliases for opus/sonnet/haiku, optional clp-style account isolation.
 - **Multi-machine** — `viberelay sync` mirrors auth tokens / settings (and optionally `~/.claude` config + viberelay profiles) over SSH; `viberelay use remote <host>` tunnels a remote daemon to `127.0.0.1:8327` so every client (Claude Code, openclaw, SwiftBar) keeps using the same URL.
 - **OpenClaw integration** — `viberelay openclaw setup` writes a provider into `~/.openclaw/openclaw.json` with your live model groups, switchable from any chat (Telegram, Discord, …) via `/model viberelay/<group>`.
+- **Cursor upstream** — request `cursor/<model>` through any OpenAI/Anthropic-compatible client to route via your local Cursor Agent login (best-effort, non-streaming adapter).
 - **CLI** — one binary, zero Node runtime required on the target machine; self-updates from GitHub releases.
 - **Web dashboard** — provider toggles, account switches, 5h / weekly quota countdowns, group editor with strategy picker, custom labels, live logs.
 

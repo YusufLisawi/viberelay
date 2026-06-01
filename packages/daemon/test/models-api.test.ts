@@ -28,8 +28,8 @@ describe('models api', () => {
     const payload = await response.json() as { data: Array<{ id: string, owned_by: string }> }
 
     expect(response.status).toBe(200)
-    expect(payload.data).toEqual([
+    expect(payload.data).toContainEqual(
       { id: 'high', owned_by: 'viberelay' }
-    ])
+    )
   })
 })

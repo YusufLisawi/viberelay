@@ -9,6 +9,7 @@ import type { Readable } from 'node:stream'
 import { displayNameForAccount, isExpiredAccount, loadAuthAccounts, type LocalAuthAccount } from './accounts/auth.js'
 import { launchOAuthLogin, saveApiKeyAccount } from './accounts/manage.js'
 import { renderDashboard, type DashboardProviderSummary, type DashboardStatusPayload } from './dashboard/render.js'
+import { addCursorModels, maybeHandleCursorUpstream, type CursorRunner } from './proxy/cursor-upstream.js'
 import { injectGroupModels, shouldInterceptModelsRequest, type ModelEntry } from './proxy/models-interceptor.js'
 import { ModelGroupRouter, type ModelGroup } from './proxy/model-group-router.js'
 import {
@@ -47,6 +48,7 @@ export interface DaemonControllerOptions {
   modelGroups?: ModelGroup[]
   upstreamModels?: ModelEntry[]
   upstreamFetch?: typeof fetch
+  cursorRunner?: CursorRunner
   providerUsageByAccount?: Record<string, Record<string, ProviderUsageWindow>>
   providerEnabled?: Record<string, boolean>
   iconsDir?: string
@@ -142,7 +144,7 @@ function buildAccountsSummary(accounts: LocalAuthAccount[], settingsState?: Sett
 }
 
 function buildModelsCatalog(upstreamModels: ModelEntry[], groupNames: string[], customModels: Array<{ owner: string, id: string }> = []) {
-  const merged: ModelEntry[] = [...upstreamModels]
+  const merged: ModelEntry[] = addCursorModels([...upstreamModels])
   const seen = new Set(merged.map((entry) => `${entry.owned_by}/${entry.id}`))
   for (const custom of customModels) {
     const key = `${custom.owner}/${custom.id}`
@@ -819,9 +821,10 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
           const baseModels = upstreamModels.length > 0
             ? { data: upstreamModels }
             : { data: modelGroupRouter.activeGroupNames().map((name) => ({ id: name, owned_by: 'viberelay' })) }
+          const cursorModels = { data: addCursorModels(baseModels.data) }
           const payload = shouldInterceptModelsRequest('GET', '/v1/models')
-            ? injectGroupModels(baseModels, modelGroupRouter.activeGroupNames())
-            : baseModels
+            ? injectGroupModels(cursorModels, modelGroupRouter.activeGroupNames())
+            : cursorModels
           response.writeHead(200, { 'content-type': 'application/json' })
           response.end(JSON.stringify(payload))
           return
@@ -843,8 +846,10 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
           '/v1/embeddings'
         ].includes(url.pathname)) {
           const body = await readRequestBody(request)
+          let requestedModel: string | undefined
           try {
-            JSON.parse(body)
+            const parsed = JSON.parse(body) as Record<string, unknown>
+            requestedModel = typeof parsed.model === 'string' ? parsed.model : undefined
           } catch {
             response.writeHead(400, { 'content-type': 'application/json' })
             response.end(JSON.stringify({ error: { message: 'invalid JSON body', type: 'invalid_request_error', code: 'invalid_json' } }))
@@ -852,13 +857,15 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
           }
           const activeByType = await activeAccountsByType(authDir, settingsStore?.state)
           recordUsage(usageStats, 'POST', url.pathname)
-          const forwarded = await normalizeAndForward({
+          const cursorForwarded = await maybeHandleCursorUpstream({ path: url.pathname, body, runner: options.cursorRunner })
+          const forwarded = cursorForwarded ?? await normalizeAndForward({
             onResolved: (realModel, groupName) => {
               try {
                 usageStats.modelCounts[realModel] = (usageStats.modelCounts[realModel] ?? 0) + 1
                 const provider = extractProvider(realModel)
                 const accountType = mapProviderToAccountType(provider, realModel)
                 usageStats.lastGroup = groupName
+                usageStats.lastRequestedModel = requestedModel ?? realModel
                 usageStats.lastModel = realModel
                 usageStats.lastProvider = accountType ?? provider
                 usageStats.lastAt = iso8601(new Date())
@@ -952,7 +959,8 @@ export function createDaemonController(options: DaemonControllerOptions = {}): D
         if (url.pathname.startsWith('/v1/')) {
           const body = request.method === 'GET' || request.method === 'HEAD' ? '' : await readRequestBody(request)
           recordUsage(usageStats, request.method ?? 'GET', url.pathname)
-          const forwarded = await normalizeAndForward({
+          const cursorForwarded = await maybeHandleCursorUpstream({ path: url.pathname, body, runner: options.cursorRunner })
+          const forwarded = cursorForwarded ?? await normalizeAndForward({
             upstreamFetch,
             targetHost: host,
             targetPort,

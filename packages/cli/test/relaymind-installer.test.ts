@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, realpath, rm, writeFile, stat } from 'node:fs/promises'
+import { chmod, mkdtemp, mkdir, readFile, realpath, rm, writeFile, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -29,11 +29,21 @@ import { captureTelegramPairing } from '../src/lib/profile-installer.js'
 
 let workspace: string
 let originalCwd: string
+let originalPath: string | undefined
 
 beforeEach(async () => {
   originalCwd = process.cwd()
+  originalPath = process.env.PATH
   workspace = await mkdtemp(join(tmpdir(), 'relaymind-installer-'))
   process.chdir(workspace)
+  const binDir = join(workspace, 'bin')
+  await mkdir(binDir, { recursive: true })
+  for (const bin of ['tmux', 'claude']) {
+    const binPath = join(binDir, bin)
+    await writeFile(binPath, '#!/bin/sh\necho "$0 test-version"\n', 'utf8')
+    await chmod(binPath, 0o755)
+  }
+  process.env.PATH = `${binDir}:${originalPath ?? ''}`
   // Redirect Claude Code's user-level config to a per-test sandbox so the
   // trust pre-mark can't mutate the developer's real ~/.claude.json.
   process.env.RELAYMIND_CLAUDE_CONFIG_PATH = join(workspace, '.claude.json')
@@ -41,6 +51,8 @@ beforeEach(async () => {
 
 afterEach(async () => {
   process.chdir(originalCwd)
+  if (originalPath === undefined) delete process.env.PATH
+  else process.env.PATH = originalPath
   delete process.env.RELAYMIND_CLAUDE_CONFIG_PATH
   await rm(workspace, { recursive: true, force: true })
 })

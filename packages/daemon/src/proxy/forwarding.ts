@@ -10,6 +10,7 @@ export interface UsageStats {
   accountRotationIndex: Record<string, number>
   statsDay?: string
   lastGroup?: string
+  lastRequestedModel?: string
   lastModel?: string
   lastProvider?: string
   lastAccount?: string
@@ -95,6 +96,7 @@ export function buildUsagePayload(stats: UsageStats, iso8601: (date: Date) => st
     model_counts: { ...stats.modelCounts },
     account_counts: JSON.parse(JSON.stringify(stats.accountCounts)) as Record<string, Record<string, number>>,
     last_group: stats.lastGroup,
+    last_requested_model: stats.lastRequestedModel,
     last_model: stats.lastModel,
     last_provider: stats.lastProvider,
     last_account: stats.lastAccount,

@@ -7,10 +7,6 @@
     {
       "name": "vibemind-telegram",
       "source": "./telegram-plugin-cc"
-    },
-    {
-      "name": "vibemind-relaymind",
-      "source": "./relaymind-plugin-cc"
     }
   ]
 }

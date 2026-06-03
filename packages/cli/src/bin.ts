@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import path from 'node:path'
 import process from 'node:process'
 import { runAccountsCommand } from './commands/accounts.js'
 import { runAppIndicatorCommand } from './commands/appindicator.js'
@@ -7,7 +6,6 @@ import { runDashboardCommand } from './commands/dashboard.js'
 import { runLogsCommand } from './commands/logs.js'
 import { runMenubarCommand } from './commands/menubar.js'
 import { runProfileCommand } from './commands/profile.js'
-import { runRelaymindCommand } from './commands/relaymind/index.js'
 import { runServiceCommand } from './commands/service.js'
 import { runStartCommand } from './commands/start.js'
 import { runStatusCommand } from './commands/status.js'
@@ -58,7 +56,6 @@ Proxy:
   openclaw setup     Wire OpenClaw at viberelay's local proxy (run \`viberelay openclaw help\`)
   use local|remote   Switch between local daemon and a tunneled remote one (run \`viberelay use help\`)
   profile ... (p)    Manage local Claude profiles (run \`viberelay profile help\`)
-  relaymind ... (rm) Persistent Telegram assistant (run \`viberelay relaymind help\`)
   run [-d] <name>    Shortcut for \`viberelay profile run\` (also: \`r\`, \`exec\`)
 
 Self-maintenance:
@@ -67,29 +64,6 @@ Self-maintenance:
 }
 
 async function main() {
-  // Basename routing — same binary, two PATH names. When invoked as
-  // `relaymind` (compiled standalone, or via the install-relaymind.sh
-  // symlink), every arg goes straight to the RelayMind registrar; the
-  // viberelay command set is hidden.
-  //
-  // Important: in `bun --compile` standalone binaries, `process.argv[0]`
-  // is literally the string "bun" — it does NOT contain the invocation
-  // path. `process.argv0` (Node convention) preserves the original argv[0]
-  // including any symlink path, so we use that for basename detection.
-  // In dev (`bun bin.ts ...`), argv0 is the bun executable, so the check
-  // falls through to viberelay. The user's args still come from argv[2:]
-  // because bin.ts is the entry script.
-  const invokedAs = path.basename(process.argv0 ?? '').toLowerCase()
-  if (invokedAs === 'relaymind' || invokedAs === 'relaymind.exe') {
-    const relaymindArgs = process.argv.slice(2)
-    if (relaymindArgs[0] === '--version' || relaymindArgs[0] === '-v' || relaymindArgs[0] === 'version') {
-      process.stdout.write(`relaymind ${VERSION}\n`)
-      return
-    }
-    process.stdout.write(await runRelaymindCommand({ argv: relaymindArgs, baseUrl }) + '\n')
-    return
-  }
-
   switch (command) {
     case 'help':
     case '--help':
@@ -153,10 +127,6 @@ async function main() {
       return
     case 'telegram':
       process.stdout.write(await runTelegramCommand({ baseUrl }) + '\n')
-      return
-    case 'relaymind':
-    case 'rm':
-      process.stdout.write(await runRelaymindCommand({ argv: process.argv.slice(3), baseUrl }) + '\n')
       return
     case 'menubar':
       process.stdout.write(await runMenubarCommand({}) + '\n')

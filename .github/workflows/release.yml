@@ -55,8 +55,6 @@ jobs:
         run: bun run typecheck
 
       - name: Test
-        # RelayMind tests require `claude` on PATH (doctor checks); they run
-        # in the build-relaymind job (currently gated) once that's CI-friendly.
         run: bunx vitest run
 
       - name: Compile binaries
@@ -69,56 +67,6 @@ jobs:
         with:
           name: viberelay-${{ matrix.target }}
           path: dist/archives/viberelay-${{ matrix.target }}.${{ matrix.archive_ext }}
-
-  # ── relaymind standalone binary ──────────────────────────────────────────────
-  # Windows is intentionally excluded — relaymind is darwin/linux only.
-  build-relaymind:
-    # TEMP: disabled — env-dependent tests (claude CLI) and untested cross-target
-    # packaging block release. Re-enable once the test suite + packaging are
-    # CI-friendly. Issue tracker: TBD.
-    if: false
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-14
-            target: bun-darwin-x64
-          - runner: macos-14
-            target: bun-darwin-arm64
-          - runner: ubuntu-latest
-            target: bun-linux-x64
-          - runner: ubuntu-24.04-arm
-            target: bun-linux-arm64
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install deps
-        run: bun install --frozen-lockfile
-
-      - name: Typecheck
-        run: bun run typecheck
-
-      - name: Test
-        run: bun test packages/cli/test/relaymind-*.test.ts
-
-      - name: Compile relaymind binary
-        run: bun run scripts/build.ts --target ${{ matrix.target }}
-
-      - name: Package relaymind archive
-        run: bun scripts/package-relaymind.ts --target ${{ matrix.target }}
-
-      - name: Smoke test relaymind package
-        run: bun scripts/test-package-relaymind.ts
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: relaymind-${{ matrix.target }}
-          path: dist/archives/relaymind-${{ matrix.target }}.tar.gz
 
   release:
     needs: [build]
@@ -136,7 +84,6 @@ jobs:
           find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} release/ \;
           cp install.sh release/install.sh
           cp install.ps1 release/install.ps1
-          cp install-relaymind.sh release/install-relaymind.sh
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
